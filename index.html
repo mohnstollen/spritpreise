@@ -519,6 +519,7 @@ async function exportData(){
   const data={app:'spritpreise',version:1,exported:new Date().toISOString()};
   KEYS.forEach(k=>{const v=LS.get(k,null);if(v!=null)data[k]=v});
   const name='spritpreise-'+new Date().toISOString().slice(0,10)+'.json';
+  if(window.Android)return Android.saveFile(name,JSON.stringify(data));
   const file=new File([JSON.stringify(data)],name,{type:'application/json'});
   try{if(navigator.canShare?.({files:[file]}))return await navigator.share({files:[file],title:name})}catch(e){if(e.name==='AbortError')return}
   const a=document.createElement('a');a.href=URL.createObjectURL(file);a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);
@@ -573,6 +574,7 @@ async function share(id){
   const link='https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(s.name+', '+addr(s));
   const text=`${s.brand||s.name}, ${s.place||''} – ${p==null?'kein Preis':p.toFixed(3).replace('.',',')+' €'} (${FN[S.fuel]}) – ${link}`;
   try{
+    if(window.Android)return Android.share(text);
     if(navigator.share)await navigator.share({text});
     else{await navigator.clipboard.writeText(text);msg('In die Zwischenablage kopiert');setTimeout(()=>msg(''),2000)}
   }catch{}
@@ -668,12 +670,22 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')hideRes()});
 document.addEventListener('pointerdown',e=>{if(!e.target.closest('#res,#sf'))hideRes()});
 
 /* Service Worker und Update-Hinweis */
-if('serviceWorker'in navigator){
+if('serviceWorker'in navigator&&!window.Android){
   const had=!!navigator.serviceWorker.controller;
   navigator.serviceWorker.addEventListener('controllerchange',()=>{if(had)$('#upd').hidden=false});
   navigator.serviceWorker.register('sw.js').then(r=>document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')r.update().catch(()=>{})})).catch(()=>{});
 }
 $('#reload').onclick=()=>location.reload();
+
+/* Android-App: Zurück-Taste schließt erst Dialoge, Suchergebnisse und Popups, dann geht es zur Karte */
+window.appBack=()=>{
+  const d=[...$$('dialog')].reverse().find(x=>x.open);
+  if(d){d.close('cancel');return true}
+  if(!$('#res').hidden){hideRes();return true}
+  if(document.querySelector('.leaflet-popup')){map.closePopup();return true}
+  if(S.view!=='map'){show('map');return true}
+  return false;
+};
 
 /* Start: zuletzt geladene Preise sofort zeigen, dann aktualisieren */
 const last=LS.get('last',null);
