@@ -106,7 +106,7 @@ dialog menu #save{background:var(--ink);color:var(--amber);border-color:var(--in
 <script>
 const $=s=>document.querySelector(s), $$=s=>document.querySelectorAll(s);
 const LS={get:(k,d)=>{try{return JSON.parse(localStorage.getItem(k))??d}catch{return d}},set:(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch{}}};
-const S={key:LS.get('key',''),fuel:LS.get('fuel','e5'),sort:LS.get('sort','dist'),favs:LS.get('favs',{}),fp:{},stations:[],me:null,view:'map'};
+const S={key:LS.get('key',''),fuel:LS.get('fuel','e5'),sort:LS.get('sort','dist'),favs:LS.get('favs',{}),fp:{},wait:0,stations:[],me:null,view:'map'};
 const FN={e5:'E5',e10:'E10',diesel:'Diesel'};
 const API='https://creativecommons.tankerkoenig.de/json/';
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -114,6 +114,7 @@ const n=v=>typeof v==='number'?v:null;
 const fmt=p=>{if(p==null)return '–';const t=p.toFixed(3);return t.slice(0,-1).replace('.',',')+'<sup>'+t.slice(-1)+'</sup>'};
 const dist=(a,b)=>{const r=Math.PI/180,x=Math.sin((b[0]-a[0])*r/2)**2+Math.cos(a[0]*r)*Math.cos(b[0]*r)*Math.sin((b[1]-a[1])*r/2)**2;return 12742*Math.asin(Math.sqrt(x))};
 const prOf=s=>({e5:n(s.e5),e10:n(s.e10),diesel:n(s.diesel),open:s.isOpen!==false});
+const hhmm=ms=>new Date(ms).toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'});
 const msg=t=>{$('#msg').textContent=t||''};
 
 /* Karte */
@@ -137,6 +138,7 @@ function locate(){
 async function load(force){
   if(!S.key)return openSettings();
   if(map.getZoom()<11)return msg('Näher heranzoomen, um Preise zu laden');
+  if(!force&&Date.now()<S.wait)return msg('Abfragen pausiert bis '+hhmm(S.wait)+' Uhr');
   const c=map.getCenter(),ne=map.getBounds().getNorthEast();
   const rad=Math.min(25,Math.max(1,dist([c.lat,c.lng],[ne.lat,ne.lng])));
   if(!force&&lastQ&&Date.now()-lastQ.t<300000&&dist([c.lat,c.lng],lastQ.c)<lastQ.rad*0.3&&rad<=lastQ.rad*1.25)return;
@@ -146,7 +148,10 @@ async function load(force){
     if(!r.ok)throw new Error(r.message||'API-Fehler');
     S.stations=r.stations||[];lastQ={c:[c.lat,c.lng],rad,t:Date.now()};msg('');
     pins();if(S.view==='list')list();
-  }catch(e){msg('Fehler: '+(e.message||'Netzwerk'))}
+  }catch(e){
+    S.wait=Date.now()+120000;
+    msg((e instanceof TypeError?'Keine Antwort von Tankerkönig (evtl. Abfrage-Limit)':'Fehler: '+e.message)+'. Pause bis '+hhmm(S.wait)+' Uhr');
+  }
 }
 
 function card(s,pr,d){
@@ -212,7 +217,7 @@ function setFuel(f){
 function openSettings(){$('#key').value=S.key;$('#dlg').showModal()}
 
 /* Events */
-map.on('moveend',()=>{clearTimeout(tmr);tmr=setTimeout(load,700)});
+map.on('moveend',()=>{clearTimeout(tmr);tmr=setTimeout(load,1500)});
 $('#loc').onclick=locate;
 $('#cfg').onclick=openSettings;
 $('#dlg').addEventListener('close',e=>{if(e.target.returnValue==='ok'){S.key=$('#key').value.trim();LS.set('key',S.key);load(true)}});
