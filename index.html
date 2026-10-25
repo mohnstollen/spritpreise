@@ -1,0 +1,230 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Spritpreise</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="theme-color" content="#14181c">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<style>
+:root{--bg:#f2f4f5;--fg:#14181c;--card:#fff;--mut:#5d6870;--line:#d9dfe3;--ink:#14181c;--amber:#ffb000;--good:#1f9d55;--bad:#d64545}
+@media(prefers-color-scheme:dark){:root{--bg:#0e1114;--fg:#e9edef;--card:#1a2025;--mut:#93a0a8;--line:#2b343b}}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{height:100%;margin:0}
+body{display:flex;flex-direction:column;background:var(--bg);color:var(--fg);font:16px/1.4 system-ui,-apple-system,sans-serif;padding:env(safe-area-inset-top) 0 0}
+button,input{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:3px solid var(--amber);outline-offset:2px}
+header{display:flex;gap:10px;align-items:center;justify-content:space-between;padding:8px 12px;background:var(--ink);color:#fff}
+.seg{display:flex;border:1px solid #3a444c;border-radius:8px;overflow:hidden}
+.seg button{background:none;border:0;color:#cfd6da;padding:8px 14px;font-weight:600}
+.seg button.on{background:var(--amber);color:#14181c}
+#cfg{background:none;border:0;color:#fff;font-size:22px;padding:6px 10px}
+main{position:relative;flex:1;min-height:0}
+main>section{position:absolute;inset:0}
+#map{z-index:0}
+#list,#favs{overflow:auto;padding:10px 12px 16px}
+#msg{position:absolute;z-index:1100;top:10px;left:50%;transform:translateX(-50%);background:var(--ink);color:#fff;padding:6px 14px;border-radius:20px;font-size:14px;max-width:90%;text-align:center}
+#msg:empty{display:none}
+#loc{position:absolute;z-index:1000;right:12px;bottom:16px;width:48px;height:48px;border-radius:50%;border:0;background:var(--ink);color:var(--amber);font-size:24px;box-shadow:0 2px 8px #0006}
+nav{display:flex;background:var(--card);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom)}
+nav button{flex:1;background:none;border:0;padding:12px 0;color:var(--mut);font-weight:600;border-top:3px solid transparent}
+nav button.on{color:var(--fg);border-top-color:var(--amber)}
+.sortbar{display:flex;gap:8px;align-items:center;margin-bottom:10px;color:var(--mut)}
+.sortbar button{border:1px solid var(--line);background:var(--card);border-radius:8px;padding:6px 12px}
+.sortbar button.on{background:var(--ink);color:var(--amber);border-color:var(--ink)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-bottom:8px}
+.leaflet-popup-content .card{border:0;padding:0;margin:0;background:none}
+.leaflet-popup-content-wrapper,.leaflet-popup-tip{background:var(--card);color:var(--fg)}
+.r1{display:flex;justify-content:space-between;gap:10px;align-items:baseline}
+.p{font-size:26px;font-weight:800;font-variant-numeric:tabular-nums}
+.p sup{font-size:.55em}
+.mut{color:var(--mut);font-size:14px}
+.all{display:flex;gap:12px;margin:6px 0;font-size:14px;color:var(--mut);font-variant-numeric:tabular-nums}
+.all .sel{color:var(--fg);font-weight:700}
+.act{display:flex;gap:8px;align-items:center}
+.act button{border:1px solid var(--line);background:none;border-radius:8px;font-size:20px;line-height:1;padding:6px 10px}
+.act a{background:var(--ink);color:var(--amber);text-decoration:none;font-weight:600;border-radius:8px;padding:8px 14px}
+.pin{transform:translate(-50%,-100%);width:max-content;background:var(--ink);color:var(--amber);border:2px solid var(--ink);border-radius:6px;padding:1px 6px;font-weight:800;font-size:14px;font-variant-numeric:tabular-nums;box-shadow:0 1px 4px #0006}
+.pin sup{font-size:.6em}
+.pin.g{border-color:var(--good)}.pin.r{border-color:var(--bad)}
+.empty{color:var(--mut);text-align:center;margin-top:40px}
+dialog{border:0;border-radius:12px;padding:20px;width:min(92vw,420px);background:var(--card);color:var(--fg)}
+dialog::backdrop{background:#0009}
+dialog h3{margin:0 0 12px}
+dialog label{display:block;font-weight:600}
+dialog input{display:block;width:100%;margin-top:6px;padding:10px;border:1px solid var(--line);border-radius:8px;background:var(--bg)}
+dialog menu{display:flex;justify-content:flex-end;gap:8px;padding:0;margin:14px 0 0}
+dialog menu button{border:1px solid var(--line);background:none;border-radius:8px;padding:8px 14px}
+dialog menu #save{background:var(--ink);color:var(--amber);border-color:var(--ink);font-weight:600}
+@media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important}}
+</style>
+</head>
+<body>
+<header>
+  <div class="seg" id="fuel" role="group" aria-label="Spritsorte">
+    <button data-f="e5">E5</button><button data-f="e10">E10</button><button data-f="diesel">Diesel</button>
+  </div>
+  <button id="cfg" aria-label="Einstellungen">⚙</button>
+</header>
+<main>
+  <div id="msg" role="status"></div>
+  <section id="map"><button id="loc" aria-label="Mein Standort">◎</button></section>
+  <section id="list" hidden>
+    <div class="sortbar">Sortieren:
+      <button data-s="dist">Entfernung</button><button data-s="price">Preis</button>
+    </div>
+    <div id="items"></div>
+  </section>
+  <section id="favs" hidden></section>
+</main>
+<nav>
+  <button data-v="map" class="on">Karte</button><button data-v="list">Liste</button><button data-v="favs">Favoriten</button>
+</nav>
+<dialog id="dlg">
+  <form method="dialog">
+    <h3>Einstellungen</h3>
+    <label>Tankerkönig API-Key
+      <input id="key" autocomplete="off" spellcheck="false" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx">
+    </label>
+    <p class="mut">Den kostenlosen Key gibt es auf creativecommons.tankerkoenig.de. Er wird nur lokal in diesem Browser gespeichert. Preisdaten: Tankerkönig.de (CC BY 4.0).</p>
+    <menu><button value="cancel">Abbrechen</button><button id="save" value="ok">Speichern</button></menu>
+  </form>
+</dialog>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+const $=s=>document.querySelector(s), $$=s=>document.querySelectorAll(s);
+const LS={get:(k,d)=>{try{return JSON.parse(localStorage.getItem(k))??d}catch{return d}},set:(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch{}}};
+const S={key:LS.get('key',''),fuel:LS.get('fuel','e5'),sort:LS.get('sort','dist'),favs:LS.get('favs',{}),fp:{},stations:[],me:null,view:'map'};
+const FN={e5:'E5',e10:'E10',diesel:'Diesel'};
+const API='https://creativecommons.tankerkoenig.de/json/';
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const n=v=>typeof v==='number'?v:null;
+const fmt=p=>{if(p==null)return '–';const t=p.toFixed(3);return t.slice(0,-1).replace('.',',')+'<sup>'+t.slice(-1)+'</sup>'};
+const dist=(a,b)=>{const r=Math.PI/180,x=Math.sin((b[0]-a[0])*r/2)**2+Math.cos(a[0]*r)*Math.cos(b[0]*r)*Math.sin((b[1]-a[1])*r/2)**2;return 12742*Math.asin(Math.sqrt(x))};
+const prOf=s=>({e5:n(s.e5),e10:n(s.e10),diesel:n(s.diesel),open:s.isOpen!==false});
+const msg=t=>{$('#msg').textContent=t||''};
+
+/* Karte */
+const map=L.map('map',{zoomControl:false,attributionControl:true}).setView([51.16,10.45],6);
+map.attributionControl.setPrefix(false);
+L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap · Preise: Tankerkönig.de (CC BY 4.0)'}).addTo(map);
+const layer=L.layerGroup().addTo(map);
+let meMarker,tmr;
+const ref=()=>S.me||[map.getCenter().lat,map.getCenter().lng];
+
+function locate(){
+  if(!navigator.geolocation)return msg('Standort wird nicht unterstützt');
+  navigator.geolocation.getCurrentPosition(p=>{
+    S.me=[p.coords.latitude,p.coords.longitude];
+    meMarker?.remove();
+    meMarker=L.circleMarker(S.me,{radius:8,color:'#fff',weight:3,fillColor:'#2f7bf5',fillOpacity:1}).addTo(map);
+    map.setView(S.me,13);
+  },()=>msg('Standort nicht verfügbar. Bitte Freigabe prüfen.'),{enableHighAccuracy:true,timeout:10000});
+}
+
+async function load(){
+  if(!S.key)return openSettings();
+  if(map.getZoom()<11)return msg('Näher heranzoomen, um Preise zu laden');
+  const c=map.getCenter(),ne=map.getBounds().getNorthEast();
+  const rad=Math.min(25,Math.max(1,dist([c.lat,c.lng],[ne.lat,ne.lng])));
+  try{
+    msg('Lade Preise …');
+    const r=await (await fetch(`${API}list.php?lat=${c.lat}&lng=${c.lng}&rad=${rad.toFixed(1)}&sort=dist&type=all&apikey=${encodeURIComponent(S.key)}`)).json();
+    if(!r.ok)throw new Error(r.message||'API-Fehler');
+    S.stations=r.stations||[];msg('');
+    pins();if(S.view==='list')list();
+  }catch(e){msg('Fehler: '+(e.message||'Netzwerk'))}
+}
+
+function card(s,pr,d){
+  const a=`${s.street||''} ${s.houseNumber||''}, ${s.postCode||''} ${s.place||''}`.replace(/\s+/g,' ').trim();
+  const nav='https://www.google.com/maps/dir/?api=1&destination='+encodeURIComponent(a);
+  const all=['e5','e10','diesel'].map(k=>`<span class="${k===S.fuel?'sel':''}">${FN[k]} ${fmt(pr[k])}</span>`).join('');
+  return `<div class="card"><div class="r1"><b>${esc(s.brand||s.name)}</b><span class="p">${fmt(pr[S.fuel])}</span></div>
+  <div class="mut">${esc(s.brand&&s.name!==s.brand?s.name+', ':'')}${esc(a)}${d!=null?' · '+d.toFixed(1).replace('.',',')+' km':''}${pr.open===false?' · geschlossen':''}</div>
+  <div class="all">${all}</div>
+  <div class="act"><button data-fav="${esc(s.id)}" aria-label="Favorit umschalten">${S.favs[s.id]?'★':'☆'}</button><a href="${nav}" target="_blank" rel="noopener">Navigation</a></div></div>`;
+}
+
+function pins(){
+  layer.clearLayers();
+  const v=S.stations.map(s=>n(s[S.fuel])).filter(x=>x!=null).sort((a,b)=>a-b);
+  const lo=v[Math.floor(v.length/3)],hi=v[Math.floor(v.length*2/3)];
+  S.stations.forEach(s=>{
+    const p=prOf(s),x=p[S.fuel],c=x==null?'':x<=lo?'g':x>=hi?'r':'';
+    L.marker([s.lat,s.lng],{icon:L.divIcon({className:'',iconSize:[0,0],html:`<div class="pin ${c}">${fmt(x)}</div>`})})
+      .bindPopup(card(s,p,null),{minWidth:250}).addTo(layer);
+  });
+}
+
+function list(){
+  const r=ref();
+  const a=S.stations.map(s=>({s,d:dist(r,[s.lat,s.lng]),pr:prOf(s)}));
+  a.sort(S.sort==='dist'?(x,y)=>x.d-y.d:(x,y)=>(x.pr[S.fuel]??99)-(y.pr[S.fuel]??99)||x.d-y.d);
+  $('#items').innerHTML=a.map(o=>card(o.s,o.pr,o.d)).join('')||'<p class="empty">Keine Tankstellen geladen. Wähle auf der Karte einen Ausschnitt mit Zoomstufe 11 oder näher.</p>';
+  $$('.sortbar button').forEach(b=>b.classList.toggle('on',b.dataset.s===S.sort));
+}
+
+async function favs(){
+  const ids=Object.keys(S.favs),el=$('#favs');
+  if(!ids.length){el.innerHTML='<p class="empty">Noch keine Favoriten. Tippe bei einer Tankstelle auf ☆.</p>';return}
+  const draw=()=>{const r=ref();el.innerHTML=ids.map(id=>card(S.favs[id],S.fp[id]||{},dist(r,[S.favs[id].lat,S.favs[id].lng]))).join('')};
+  draw();
+  if(!S.key)return openSettings();
+  try{
+    for(let i=0;i<ids.length;i+=10){
+      const r=await (await fetch(`${API}prices.php?ids=${ids.slice(i,i+10).join(',')}&apikey=${encodeURIComponent(S.key)}`)).json();
+      if(!r.ok)throw new Error(r.message||'API-Fehler');
+      for(const id in r.prices){const p=r.prices[id];S.fp[id]={e5:n(p.e5),e10:n(p.e10),diesel:n(p.diesel),open:p.status==='open'}}
+    }
+    draw();
+  }catch(e){el.insertAdjacentHTML('afterbegin',`<p class="empty">Fehler: ${esc(e.message||'Netzwerk')}</p>`)}
+}
+
+function show(v){
+  S.view=v;
+  for(const k of['map','list','favs'])$('#'+k).hidden=k!==v;
+  $$('nav button').forEach(b=>b.classList.toggle('on',b.dataset.v===v));
+  if(v==='map')map.invalidateSize();
+  if(v==='list')list();
+  if(v==='favs')favs();
+}
+
+function setFuel(f){
+  S.fuel=f;LS.set('fuel',f);
+  $$('#fuel button').forEach(b=>b.classList.toggle('on',b.dataset.f===f));
+  pins();if(S.view==='list')list();if(S.view==='favs')favs();
+}
+
+function openSettings(){$('#key').value=S.key;$('#dlg').showModal()}
+
+/* Events */
+map.on('moveend',()=>{clearTimeout(tmr);tmr=setTimeout(load,700)});
+$('#loc').onclick=locate;
+$('#cfg').onclick=openSettings;
+$('#dlg').addEventListener('close',e=>{if(e.target.returnValue==='ok'){S.key=$('#key').value.trim();LS.set('key',S.key);load()}});
+$('#fuel').onclick=e=>{const b=e.target.closest('[data-f]');if(b)setFuel(b.dataset.f)};
+$('nav').onclick=e=>{const b=e.target.closest('[data-v]');if(b)show(b.dataset.v)};
+$('.sortbar').onclick=e=>{const b=e.target.closest('[data-s]');if(b){S.sort=b.dataset.s;LS.set('sort',S.sort);list()}};
+document.addEventListener('click',e=>{
+  const b=e.target.closest('[data-fav]');if(!b)return;
+  const id=b.dataset.fav,s=S.stations.find(x=>x.id===id)||S.favs[id];if(!s)return;
+  if(S.favs[id])delete S.favs[id];
+  else{const{name,brand,street,houseNumber,postCode,place,lat,lng}=s;S.favs[id]={id,name,brand,street,houseNumber,postCode,place,lat,lng}}
+  LS.set('favs',S.favs);
+  $$(`[data-fav="${CSS.escape(id)}"]`).forEach(x=>x.textContent=S.favs[id]?'★':'☆');
+  if(S.view==='favs')favs();
+});
+
+setFuel(S.fuel);
+if('serviceWorker'in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
+if(!S.key)openSettings();
+locate();
+</script>
+</body>
+</html>
