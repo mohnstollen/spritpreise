@@ -79,6 +79,12 @@ dialog menu #save{background:var(--ink);color:var(--amber);border-color:var(--in
 #views button{pointer-events:auto;flex:none;background:var(--card);color:var(--fg);border:1px solid var(--line);border-radius:18px;padding:7px 14px;font-weight:600;box-shadow:0 1px 4px #0004}
 #views button[data-vadd]{color:var(--mut)}
 dialog select{display:block;width:100%;margin-top:6px;padding:10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--fg)}
+.sortbar{flex-wrap:wrap}
+#stand{margin-left:auto;font-size:14px}
+.sv{margin-top:6px;font-size:14px;font-weight:600}
+.sv.g{color:var(--good)}.sv.r{color:var(--bad)}
+.two{display:flex;gap:10px;margin-top:12px}
+.two label{flex:1;min-width:0}
 @media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important}}
 </style>
 </head>
@@ -98,7 +104,8 @@ dialog select{display:block;width:100%;margin-top:6px;padding:10px;border:1px so
   <section id="map"><button id="loc" aria-label="Mein Standort">◎</button></section>
   <section id="list" hidden>
     <div class="sortbar">Sortieren:
-      <button data-s="dist">Entfernung</button><button data-s="price">Preis</button>
+      <button data-s="dist">Entfernung</button><button data-s="price">Preis</button><button data-s="save" id="ssave">Ersparnis</button>
+      <span id="stand"></span>
     </div>
     <div id="items"></div>
   </section>
@@ -116,6 +123,11 @@ dialog select{display:block;width:100%;margin-top:6px;padding:10px;border:1px so
     <label style="margin-top:12px">Startansicht
       <select id="start"></select>
     </label>
+    <div class="two">
+      <label>Tankmenge (l)<input id="lit" inputmode="decimal" autocomplete="off" placeholder="40"></label>
+      <label>Verbrauch (l/100 km)<input id="cons" inputmode="decimal" autocomplete="off" placeholder="7"></label>
+    </div>
+    <p class="mut">Für den Umwegrechner in der Liste. Leer lassen schaltet ihn ab.</p>
     <p class="mut">Den kostenlosen Key gibt es auf creativecommons.tankerkoenig.de. Er wird nur lokal in diesem Browser gespeichert. Preisdaten: Tankerkönig.de (CC BY 4.0).</p>
     <menu><button value="cancel">Abbrechen</button><button id="save" value="ok">Speichern</button></menu>
   </form>
@@ -125,7 +137,7 @@ dialog select{display:block;width:100%;margin-top:6px;padding:10px;border:1px so
 <script>
 const $=s=>document.querySelector(s), $$=s=>document.querySelectorAll(s);
 const LS={get:(k,d)=>{try{return JSON.parse(localStorage.getItem(k))??d}catch{return d}},set:(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch{}}};
-const S={key:LS.get('key',''),fuel:LS.get('fuel','e5'),sort:LS.get('sort','dist'),favs:LS.get('favs',{}),fp:{},fpT:0,wait:0,open:LS.get('open',false),grp:'all',groups:LS.get('groups',[{id:'default',name:'Allgemein'}]),order:[],views:LS.get('views',[]),stations:[],me:null,view:'map'};
+const S={key:LS.get('key',''),fuel:LS.get('fuel','e5'),sort:LS.get('sort','dist'),favs:LS.get('favs',{}),fp:{},fpT:0,wait:0,open:LS.get('open',false),grp:'all',groups:LS.get('groups',[{id:'default',name:'Allgemein'}]),order:[],views:LS.get('views',[]),lit:LS.get('lit',40),cons:LS.get('cons',7),stations:[],me:null,view:'map'};
 const FN={e5:'E5',e10:'E10',diesel:'Diesel'};
 const API='https://creativecommons.tankerkoenig.de/json/';
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -137,13 +149,15 @@ const vis=s=>!S.open||s.isOpen!==false;
 const addr=s=>`${s.street||''} ${s.houseNumber||''}, ${s.postCode||''} ${s.place||''}`.replace(/\s+/g,' ').trim();
 const hhmm=ms=>new Date(ms).toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'});
 const msg=t=>{$('#msg').textContent=t||''};
+const num=v=>{const x=parseFloat(String(v).replace(',','.'));return x>0?x:0};
+const eur=x=>Math.abs(x).toFixed(2).replace('.',',')+' €';
 
 /* Karte */
 const map=L.map('map',{zoomControl:false,attributionControl:true}).setView([51.16,10.45],6);
 map.attributionControl.setPrefix(false);
 L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap · Preise: Tankerkönig.de (CC BY 4.0)'}).addTo(map);
 const layer=L.layerGroup().addTo(map);
-let meMarker,pinMarker,tmr,lastQ=null;
+let meMarker,pinMarker,tmr,lastQ=null,reqN=0;
 const ref=()=>S.pin||S.me||[map.getCenter().lat,map.getCenter().lng];
 
 function locate(){
@@ -157,19 +171,22 @@ function locate(){
 }
 
 async function load(force){
-  if(!S.key)return openSettings();
+  if(!S.key)return msg('Kein API-Key. Bitte unter ⚙ eintragen.');
   if(map.getZoom()<11)return msg('Näher heranzoomen, um Preise zu laden');
   if(!force&&Date.now()<S.wait)return msg('Abfragen pausiert bis '+hhmm(S.wait)+' Uhr');
   const c=map.getCenter(),ne=map.getBounds().getNorthEast();
   const rad=Math.min(25,Math.max(1,dist([c.lat,c.lng],[ne.lat,ne.lng])));
   if(!force&&lastQ&&Date.now()-lastQ.t<300000&&dist([c.lat,c.lng],lastQ.c)<lastQ.rad*0.3&&rad<=lastQ.rad*1.25)return;
+  const q=++reqN;
   try{
     msg('Lade Preise …');
     const r=await (await fetch(`${API}list.php?lat=${c.lat}&lng=${c.lng}&rad=${rad.toFixed(1)}&sort=dist&type=all&apikey=${encodeURIComponent(S.key)}`)).json();
+    if(q!==reqN)return;
     if(!r.ok)throw new Error(r.message||'API-Fehler');
     S.stations=r.stations||[];lastQ={c:[c.lat,c.lng],rad,t:Date.now()};msg('');
     pins();if(S.view==='list')list();
   }catch(e){
+    if(q!==reqN)return;
     S.wait=Date.now()+120000;
     msg((e instanceof TypeError?'Keine Antwort von Tankerkönig (evtl. Abfrage-Limit)':'Fehler: '+e.message)+'. Pause bis '+hhmm(S.wait)+' Uhr');
   }
@@ -193,16 +210,30 @@ function pins(){
   vs.forEach(s=>{
     const p=prOf(s),x=p[S.fuel],c=x==null?'':x<=lo?'g':x>=hi?'r':'';
     L.marker([s.lat,s.lng],{icon:L.divIcon({className:'',iconSize:[0,0],html:`<div class="pin ${c}">${fmt(x)}</div>`})})
-      .bindPopup(card(s,p,null),{minWidth:250}).addTo(layer);
+      .bindPopup(card(s,p,null,lastQ?`<div class="mut" style="margin-top:6px">Stand ${hhmm(lastQ.t)} Uhr</div>`:''),{minWidth:250}).addTo(layer);
   });
 }
 
+/* Umwegrechner: Kosten = Preis × (Tankmenge + Sprit für Hin- und Rückweg).
+   Luftlinie × 1,3 als grobe Schätzung der Straßenentfernung. Vergleich mit der nächsten Tankstelle. */
+const calcOn=()=>S.lit>0&&S.cons>0;
+const cost=o=>o.pr[S.fuel]*(S.lit+2*1.3*o.d*S.cons/100);
 function list(){
-  const r=ref();
+  const r=ref(),calc=calcOn(),srt=S.sort==='save'&&!calc?'price':S.sort;
   const a=S.stations.filter(vis).map(s=>({s,d:dist(r,[s.lat,s.lng]),pr:prOf(s)}));
-  a.sort(S.sort==='dist'?(x,y)=>x.d-y.d:(x,y)=>(x.pr[S.fuel]??99)-(y.pr[S.fuel]??99)||x.d-y.d);
-  $('#items').innerHTML=a.map(o=>card(o.s,o.pr,o.d)).join('')||'<p class="empty">Keine Tankstellen geladen. Wähle auf der Karte einen Ausschnitt mit Zoomstufe 11 oder näher.</p>';
-  $$('.sortbar button').forEach(b=>b.classList.toggle('on',b.dataset.s===S.sort));
+  const base=a.filter(o=>o.pr[S.fuel]!=null).reduce((m,o)=>!m||o.d<m.d?o:m,null);
+  if(calc)a.forEach(o=>{if(o.pr[S.fuel]!=null)o.c=cost(o)});
+  a.sort(srt==='dist'?(x,y)=>x.d-y.d:srt==='save'?(x,y)=>(x.c??1e9)-(y.c??1e9)||x.d-y.d:(x,y)=>(x.pr[S.fuel]??99)-(y.pr[S.fuel]??99)||x.d-y.d);
+  const sv=o=>{
+    if(!calc||!base||o.c==null)return '';
+    if(o===base)return '<div class="sv mut">Nächste Tankstelle (Vergleichswert)</div>';
+    const x=base.c-o.c;
+    return Math.abs(x)<0.005?'<div class="sv mut">Kostet genauso viel wie die nächste</div>':`<div class="sv ${x>0?'g':'r'}">${eur(x)} ${x>0?'günstiger':'teurer'} als die nächste, inkl. Umweg</div>`;
+  };
+  $('#items').innerHTML=a.map(o=>card(o.s,o.pr,o.d,sv(o))).join('')||'<p class="empty">Keine Tankstellen geladen. Wähle auf der Karte einen Ausschnitt mit Zoomstufe 11 oder näher.</p>';
+  $('#ssave').hidden=!calc;
+  $('#stand').textContent=lastQ&&S.stations.length?'Stand '+hhmm(lastQ.t)+' Uhr':'';
+  $$('.sortbar button').forEach(b=>b.classList.toggle('on',b.dataset.s===srt));
 }
 
 function gOf(id){return S.groups.some(g=>g.id===S.favs[id].g)?S.favs[id].g:'default'}
@@ -215,20 +246,20 @@ function drawFavs(){
   const tools=S.grp!=='all'&&S.grp!=='default'?'<button data-gact="ren">Umbenennen</button><button data-gact="del">Gruppe löschen</button>':'';
   const ids=visFavs().filter(id=>!S.open||(S.fp[id]||{}).open!==false);
   const opts=id=>S.groups.map(g=>`<option value="${esc(g.id)}"${g.id===gOf(id)?' selected':''}>${esc(g.name)}</option>`).join('');
-  $('#favs').innerHTML=`<div class="grpbar">${chips}<button data-gact="add">＋ Gruppe</button>${tools}</div>`+
+  $('#favs').innerHTML=`<div class="grpbar">${chips}<button data-gact="add">＋ Gruppe</button>${tools}</div>`+(S.fpT?`<p class="mut" style="margin:0 0 8px">Stand ${hhmm(S.fpT)} Uhr</p>`:'')+
     (ids.length?ids.map(id=>{const s=S.favs[id];return card(s,S.fp[id]||{},dist(r,[s.lat,s.lng]),`<div class="mv"><button data-mv="-1" data-id="${esc(id)}" aria-label="Nach oben">▲</button><button data-mv="1" data-id="${esc(id)}" aria-label="Nach unten">▼</button><select data-sel="${esc(id)}" aria-label="Gruppe">${opts(id)}</select></div>`)}).join(''):'<p class="empty">Keine Favoriten in dieser Ansicht. Tippe bei einer Tankstelle auf ☆.</p>');
 }
 async function favs(){
   drawFavs();
   const ids=Object.keys(S.favs);
   if(!ids.length)return;
-  if(!S.key)return openSettings();
+  if(!S.key)return msg('Kein API-Key. Bitte unter ⚙ eintragen.');
   if(!ids.some(id=>!S.fp[id])&&Date.now()-S.fpT<120000)return;
   try{
     for(let i=0;i<ids.length;i+=10){
       const r=await (await fetch(`${API}prices.php?ids=${ids.slice(i,i+10).join(',')}&apikey=${encodeURIComponent(S.key)}`)).json();
       if(!r.ok)throw new Error(r.message||'API-Fehler');
-      for(const id in r.prices){const p=r.prices[id];S.fp[id]={e5:n(p.e5),e10:n(p.e10),diesel:n(p.diesel),open:p.status==='open'}}
+      for(const id in r.prices){const p=r.prices[id];S.fp[id]={e5:n(p.e5),e10:n(p.e10),diesel:n(p.diesel),open:p.status!=='closed'}}
     }
     S.fpT=Date.now();drawFavs();
   }catch(e){$('#favs').insertAdjacentHTML('afterbegin',`<p class="empty">Fehler: ${esc(e.message||'Netzwerk')}</p>`)}
@@ -253,6 +284,8 @@ function setFuel(f){
 function openSettings(){
   const d=$('#dlg');if(d.open)return;
   $('#key').value=S.key;
+  $('#lit').value=S.lit?String(S.lit).replace('.',','):'';
+  $('#cons').value=S.cons?String(S.cons).replace('.',','):'';
   const cur=LS.get('start','');
   $('#start').innerHTML='<option value="">Mein Standort</option>'+S.views.map(v=>`<option value="${esc(v.id)}"${v.id===cur?' selected':''}>${esc(v.name)}</option>`).join('');
   d.showModal();
@@ -262,7 +295,15 @@ function openSettings(){
 map.on('moveend',()=>{clearTimeout(tmr);tmr=setTimeout(load,1500)});
 $('#loc').onclick=locate;
 $('#cfg').onclick=openSettings;
-$('#dlg').addEventListener('close',e=>{if(e.target.returnValue==='ok'){S.key=$('#key').value.trim();LS.set('key',S.key);LS.set('start',$('#start').value);load(true)}});
+$('#dlg').addEventListener('close',e=>{if(e.target.returnValue==='ok'){S.key=$('#key').value.trim();LS.set('key',S.key);LS.set('start',$('#start').value);
+  S.lit=num($('#lit').value);S.cons=num($('#cons').value);LS.set('lit',S.lit);LS.set('cons',S.cons);
+  msg('');if(S.view==='list')list();load(true)}});
+/* Nach Rückkehr in die App veraltete Preise nachladen */
+document.addEventListener('visibilitychange',()=>{
+  if(document.visibilityState!=='visible')return;
+  if(S.view==='favs')favs();
+  else if(lastQ&&Date.now()-lastQ.t>=300000)load();
+});
 $('#fuel').onclick=e=>{const b=e.target.closest('[data-f]');if(b)setFuel(b.dataset.f)};
 $('nav').onclick=e=>{const b=e.target.closest('[data-v]');if(b)show(b.dataset.v)};
 $('.sortbar').onclick=e=>{const b=e.target.closest('[data-s]');if(b){S.sort=b.dataset.s;LS.set('sort',S.sort);list()}};
