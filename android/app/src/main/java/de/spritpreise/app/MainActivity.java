@@ -21,6 +21,7 @@ import android.webkit.WebResourceResponse;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
+import android.widget.FrameLayout;
 import android.widget.Toast;
 
 import java.io.ByteArrayInputStream;
@@ -51,15 +52,22 @@ public class MainActivity extends Activity {
         super.onCreate(state);
         web = new WebView(this);
         web.setBackgroundColor(0xff14181c);
-        setContentView(web);
+        // Die WebView zeichnet unabhängig von ihrem eigenen Padding bis an den Rand,
+        // daher rückt ein Container sie um die Systemleisten (und die Tastatur) ein
+        FrameLayout root = new FrameLayout(this);
+        root.setBackgroundColor(0xff14181c);
+        root.addView(web, new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
+        setContentView(root);
 
-        // Ab Android 11 zeichnet die App hinter den Systemleisten; die WebView rückt um deren Höhe ein
         if (Build.VERSION.SDK_INT >= 30) {
             getWindow().setDecorFitsSystemWindows(false);
-            web.setOnApplyWindowInsetsListener((v, in) -> {
-                Insets i = in.getInsets(WindowInsets.Type.systemBars() | WindowInsets.Type.ime());
+            root.setOnApplyWindowInsetsListener((v, in) -> {
+                Insets i = in.getInsets(WindowInsets.Type.systemBars()
+                        | WindowInsets.Type.displayCutout() | WindowInsets.Type.ime());
                 v.setPadding(i.left, i.top, i.right, i.bottom);
-                return in;
+                // Verbraucht, damit die WebView die Ränder nicht zusätzlich als safe-area anwendet
+                return WindowInsets.CONSUMED;
             });
         }
 
