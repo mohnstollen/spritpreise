@@ -12,9 +12,18 @@ on:
       - android/**
       - .github/workflows/android.yml
   workflow_dispatch:
+    inputs:
+      version:
+        description: 'Versionsnummer für ein Release, z. B. 1.0.1 (leer = nur bauen)'
+        required: false
+        default: ''
 
 permissions:
   contents: read
+
+env:
+  # Release-Tag: entweder der gepushte Tag v* oder v<version> aus dem manuellen Start
+  TAG: ${{ github.ref_type == 'tag' && github.ref_name || (inputs.version != '' && format('v{0}', inputs.version) || '') }}
 
 jobs:
   apk:
@@ -55,7 +64,7 @@ jobs:
         working-directory: android
         env:
           VERSION_CODE: ${{ github.run_number }}
-          VERSION_NAME: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
+          VERSION_NAME: ${{ env.TAG }}
           KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
@@ -71,7 +80,7 @@ jobs:
 
   release:
     needs: apk
-    if: github.ref_type == 'tag'
+    if: needs.apk.result == 'success' && (github.ref_type == 'tag' || inputs.version != '')
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -84,7 +93,6 @@ jobs:
       - name: Release veröffentlichen
         env:
           GH_TOKEN: ${{ github.token }}
-          TAG: ${{ github.ref_name }}
         run: |
           mv spritpreise-*.apk spritpreise.apk
           cat > notes.md <<NOTES
@@ -96,4 +104,4 @@ jobs:
           Zum Installieren am Handy „Unbekannte Apps installieren“ für Browser oder Dateimanager erlauben.
           Vor einer Neuinstallation Favoriten unter ⚙ → „Daten exportieren“ sichern.
           NOTES
-          gh release create "$TAG" spritpreise.apk --repo "$GITHUB_REPOSITORY" --title "Spritpreise $TAG" --notes-file notes.md
+          gh release create "$TAG" spritpreise.apk --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "Spritpreise $TAG" --notes-file notes.md
