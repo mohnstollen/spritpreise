@@ -65,6 +65,15 @@ dialog menu #save{background:var(--ink);color:var(--amber);border-color:var(--in
 #sf button{background:var(--amber);color:#14181c;border:0;border-radius:8px;padding:0 14px;font-weight:700}
 #res{position:absolute;z-index:1200;top:8px;left:12px;right:12px;background:var(--card);border:1px solid var(--line);border-radius:10px;box-shadow:0 4px 16px #0006;overflow:hidden}
 #res button{display:block;width:100%;text-align:left;background:none;border:0;border-bottom:1px solid var(--line);padding:10px 12px}
+#open{background:none;border:1px solid #3a444c;color:#cfd6da;border-radius:8px;padding:8px 12px;font-weight:600}
+#open[aria-pressed=true]{background:var(--amber);color:#14181c;border-color:var(--amber)}
+.act button.t{font-size:15px;font-weight:600;padding:8px 12px}
+.grpbar{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
+.grpbar button{border:1px solid var(--line);background:var(--card);border-radius:16px;padding:6px 12px}
+.grpbar button.on{background:var(--ink);color:var(--amber);border-color:var(--ink)}
+.mv{display:flex;gap:8px;align-items:center;margin-top:8px}
+.mv button{border:1px solid var(--line);background:none;border-radius:8px;padding:6px 12px}
+.mv select{flex:1;min-width:0;padding:6px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--fg)}
 @media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important}}
 </style>
 </head>
@@ -73,6 +82,7 @@ dialog menu #save{background:var(--ink);color:var(--amber);border-color:var(--in
   <div class="seg" id="fuel" role="group" aria-label="Spritsorte">
     <button data-f="e5">E5</button><button data-f="e10">E10</button><button data-f="diesel">Diesel</button>
   </div>
+  <button id="open" aria-pressed="false">Offen</button>
   <button id="cfg" aria-label="Einstellungen">⚙</button>
   <form id="sf" role="search"><input id="q" type="search" placeholder="Ort oder PLZ suchen" aria-label="Ort oder PLZ suchen" autocomplete="off"><button>Suchen</button></form>
 </header>
@@ -106,7 +116,7 @@ dialog menu #save{background:var(--ink);color:var(--amber);border-color:var(--in
 <script>
 const $=s=>document.querySelector(s), $$=s=>document.querySelectorAll(s);
 const LS={get:(k,d)=>{try{return JSON.parse(localStorage.getItem(k))??d}catch{return d}},set:(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch{}}};
-const S={key:LS.get('key',''),fuel:LS.get('fuel','e5'),sort:LS.get('sort','dist'),favs:LS.get('favs',{}),fp:{},wait:0,stations:[],me:null,view:'map'};
+const S={key:LS.get('key',''),fuel:LS.get('fuel','e5'),sort:LS.get('sort','dist'),favs:LS.get('favs',{}),fp:{},fpT:0,wait:0,open:LS.get('open',false),grp:'all',groups:LS.get('groups',[{id:'default',name:'Allgemein'}]),order:[],stations:[],me:null,view:'map'};
 const FN={e5:'E5',e10:'E10',diesel:'Diesel'};
 const API='https://creativecommons.tankerkoenig.de/json/';
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -114,6 +124,8 @@ const n=v=>typeof v==='number'?v:null;
 const fmt=p=>{if(p==null)return '–';const t=p.toFixed(3);return t.slice(0,-1).replace('.',',')+'<sup>'+t.slice(-1)+'</sup>'};
 const dist=(a,b)=>{const r=Math.PI/180,x=Math.sin((b[0]-a[0])*r/2)**2+Math.cos(a[0]*r)*Math.cos(b[0]*r)*Math.sin((b[1]-a[1])*r/2)**2;return 12742*Math.asin(Math.sqrt(x))};
 const prOf=s=>({e5:n(s.e5),e10:n(s.e10),diesel:n(s.diesel),open:s.isOpen!==false});
+const vis=s=>!S.open||s.isOpen!==false;
+const addr=s=>`${s.street||''} ${s.houseNumber||''}, ${s.postCode||''} ${s.place||''}`.replace(/\s+/g,' ').trim();
 const hhmm=ms=>new Date(ms).toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'});
 const msg=t=>{$('#msg').textContent=t||''};
 
@@ -154,21 +166,22 @@ async function load(force){
   }
 }
 
-function card(s,pr,d){
+function card(s,pr,d,extra=''){
   const a=`${s.street||''} ${s.houseNumber||''}, ${s.postCode||''} ${s.place||''}`.replace(/\s+/g,' ').trim();
   const nav='https://www.google.com/maps/dir/?api=1&destination='+encodeURIComponent(a);
   const all=['e5','e10','diesel'].map(k=>`<span class="${k===S.fuel?'sel':''}">${FN[k]} ${fmt(pr[k])}</span>`).join('');
   return `<div class="card"><div class="r1"><b>${esc(s.brand||s.name)}</b><span class="p">${fmt(pr[S.fuel])}</span></div>
   <div class="mut">${esc(s.brand&&s.name!==s.brand?s.name+', ':'')}${esc(a)}${d!=null?' · '+d.toFixed(1).replace('.',',')+' km':''}${pr.open===false?' · geschlossen':''}</div>
   <div class="all">${all}</div>
-  <div class="act"><button data-fav="${esc(s.id)}" aria-label="Favorit umschalten">${S.favs[s.id]?'★':'☆'}</button><a href="${nav}" target="_blank" rel="noopener">Navigation</a></div></div>`;
+  <div class="act"><button data-fav="${esc(s.id)}" aria-label="Favorit umschalten">${S.favs[s.id]?'★':'☆'}</button><a href="${nav}" target="_blank" rel="noopener">Navigation</a><button class="t" data-share="${esc(s.id)}">Teilen</button></div>${extra}</div>`;
 }
 
 function pins(){
   layer.clearLayers();
-  const v=S.stations.map(s=>n(s[S.fuel])).filter(x=>x!=null).sort((a,b)=>a-b);
+  const vs=S.stations.filter(vis);
+  const v=vs.map(s=>n(s[S.fuel])).filter(x=>x!=null).sort((a,b)=>a-b);
   const lo=v[Math.floor(v.length/3)],hi=v[Math.floor(v.length*2/3)];
-  S.stations.forEach(s=>{
+  vs.forEach(s=>{
     const p=prOf(s),x=p[S.fuel],c=x==null?'':x<=lo?'g':x>=hi?'r':'';
     L.marker([s.lat,s.lng],{icon:L.divIcon({className:'',iconSize:[0,0],html:`<div class="pin ${c}">${fmt(x)}</div>`})})
       .bindPopup(card(s,p,null),{minWidth:250}).addTo(layer);
@@ -177,26 +190,39 @@ function pins(){
 
 function list(){
   const r=ref();
-  const a=S.stations.map(s=>({s,d:dist(r,[s.lat,s.lng]),pr:prOf(s)}));
+  const a=S.stations.filter(vis).map(s=>({s,d:dist(r,[s.lat,s.lng]),pr:prOf(s)}));
   a.sort(S.sort==='dist'?(x,y)=>x.d-y.d:(x,y)=>(x.pr[S.fuel]??99)-(y.pr[S.fuel]??99)||x.d-y.d);
   $('#items').innerHTML=a.map(o=>card(o.s,o.pr,o.d)).join('')||'<p class="empty">Keine Tankstellen geladen. Wähle auf der Karte einen Ausschnitt mit Zoomstufe 11 oder näher.</p>';
   $$('.sortbar button').forEach(b=>b.classList.toggle('on',b.dataset.s===S.sort));
 }
 
+function gOf(id){return S.groups.some(g=>g.id===S.favs[id].g)?S.favs[id].g:'default'}
+function syncOrder(){S.order=LS.get('order',[]).filter(id=>S.favs[id]);for(const id in S.favs)if(!S.order.includes(id))S.order.push(id)}
+function saveFavs(){LS.set('favs',S.favs);LS.set('order',S.order);LS.set('groups',S.groups)}
+function visFavs(){return S.order.filter(id=>S.grp==='all'||gOf(id)===S.grp)}
+function drawFavs(){
+  const r=ref();
+  const chips=[{id:'all',name:'Alle'},...S.groups].map(g=>`<button data-g="${esc(g.id)}" class="${g.id===S.grp?'on':''}">${esc(g.name)}</button>`).join('');
+  const tools=S.grp!=='all'&&S.grp!=='default'?'<button data-gact="ren">Umbenennen</button><button data-gact="del">Gruppe löschen</button>':'';
+  const ids=visFavs().filter(id=>!S.open||(S.fp[id]||{}).open!==false);
+  const opts=id=>S.groups.map(g=>`<option value="${esc(g.id)}"${g.id===gOf(id)?' selected':''}>${esc(g.name)}</option>`).join('');
+  $('#favs').innerHTML=`<div class="grpbar">${chips}<button data-gact="add">＋ Gruppe</button>${tools}</div>`+
+    (ids.length?ids.map(id=>{const s=S.favs[id];return card(s,S.fp[id]||{},dist(r,[s.lat,s.lng]),`<div class="mv"><button data-mv="-1" data-id="${esc(id)}" aria-label="Nach oben">▲</button><button data-mv="1" data-id="${esc(id)}" aria-label="Nach unten">▼</button><select data-sel="${esc(id)}" aria-label="Gruppe">${opts(id)}</select></div>`)}).join(''):'<p class="empty">Keine Favoriten in dieser Ansicht. Tippe bei einer Tankstelle auf ☆.</p>');
+}
 async function favs(){
-  const ids=Object.keys(S.favs),el=$('#favs');
-  if(!ids.length){el.innerHTML='<p class="empty">Noch keine Favoriten. Tippe bei einer Tankstelle auf ☆.</p>';return}
-  const draw=()=>{const r=ref();el.innerHTML=ids.map(id=>card(S.favs[id],S.fp[id]||{},dist(r,[S.favs[id].lat,S.favs[id].lng]))).join('')};
-  draw();
+  drawFavs();
+  const ids=Object.keys(S.favs);
+  if(!ids.length)return;
   if(!S.key)return openSettings();
+  if(!ids.some(id=>!S.fp[id])&&Date.now()-S.fpT<120000)return;
   try{
     for(let i=0;i<ids.length;i+=10){
       const r=await (await fetch(`${API}prices.php?ids=${ids.slice(i,i+10).join(',')}&apikey=${encodeURIComponent(S.key)}`)).json();
       if(!r.ok)throw new Error(r.message||'API-Fehler');
       for(const id in r.prices){const p=r.prices[id];S.fp[id]={e5:n(p.e5),e10:n(p.e10),diesel:n(p.diesel),open:p.status==='open'}}
     }
-    draw();
-  }catch(e){el.insertAdjacentHTML('afterbegin',`<p class="empty">Fehler: ${esc(e.message||'Netzwerk')}</p>`)}
+    S.fpT=Date.now();drawFavs();
+  }catch(e){$('#favs').insertAdjacentHTML('afterbegin',`<p class="empty">Fehler: ${esc(e.message||'Netzwerk')}</p>`)}
 }
 
 function show(v){
@@ -227,12 +253,46 @@ $('.sortbar').onclick=e=>{const b=e.target.closest('[data-s]');if(b){S.sort=b.da
 document.addEventListener('click',e=>{
   const b=e.target.closest('[data-fav]');if(!b)return;
   const id=b.dataset.fav,s=S.stations.find(x=>x.id===id)||S.favs[id];if(!s)return;
-  if(S.favs[id])delete S.favs[id];
-  else{const{name,brand,street,houseNumber,postCode,place,lat,lng}=s;S.favs[id]={id,name,brand,street,houseNumber,postCode,place,lat,lng}}
-  LS.set('favs',S.favs);
+  if(S.favs[id]){delete S.favs[id];S.order=S.order.filter(x=>x!==id)}
+  else{const{name,brand,street,houseNumber,postCode,place,lat,lng}=s;S.favs[id]={id,name,brand,street,houseNumber,postCode,place,lat,lng,g:'default'};S.order.push(id)}
+  saveFavs();
   $$(`[data-fav="${CSS.escape(id)}"]`).forEach(x=>x.textContent=S.favs[id]?'★':'☆');
   if(S.view==='favs')favs();
 });
+
+/* Teilen, Filter, Favoritengruppen */
+function syncOpen(){$('#open').setAttribute('aria-pressed',S.open)}
+$('#open').onclick=()=>{S.open=!S.open;LS.set('open',S.open);syncOpen();pins();if(S.view==='list')list();if(S.view==='favs')favs()};
+async function share(id){
+  const st=S.stations.find(x=>x.id===id),s=st||S.favs[id];if(!s)return;
+  const p=(st?prOf(st):S.fp[id]||{})[S.fuel];
+  const link='https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(s.name+', '+addr(s));
+  const text=`${s.brand||s.name}, ${s.place||''} – ${p==null?'kein Preis':p.toFixed(3).replace('.',',')+' €'} (${FN[S.fuel]}) – ${link}`;
+  try{
+    if(navigator.share)await navigator.share({text});
+    else{await navigator.clipboard.writeText(text);msg('In die Zwischenablage kopiert');setTimeout(()=>msg(''),2000)}
+  }catch{}
+}
+document.addEventListener('click',e=>{
+  const t=e.target.closest('[data-share],[data-mv],[data-g],[data-gact]');if(!t)return;
+  const d=t.dataset;
+  if(d.share)return share(d.share);
+  if(d.mv){
+    const v=visFavs(),i=v.indexOf(d.id),j=i+ +d.mv;if(i<0||j<0||j>=v.length)return;
+    const a=S.order.indexOf(v[i]),b=S.order.indexOf(v[j]);[S.order[a],S.order[b]]=[S.order[b],S.order[a]];
+    saveFavs();return drawFavs();
+  }
+  if(d.g){S.grp=d.g;return drawFavs()}
+  const g=S.groups.find(x=>x.id===S.grp);
+  if(d.gact==='add'){const nm=(prompt('Name der neuen Gruppe')||'').trim();if(!nm)return;const id='g'+Date.now();S.groups.push({id,name:nm});S.grp=id}
+  else if(d.gact==='ren'){const nm=(prompt('Neuer Name',g.name)||'').trim();if(!nm)return;g.name=nm}
+  else if(d.gact==='del'){
+    if(!confirm(`Gruppe „${g.name}“ löschen? Die Favoriten wandern nach „Allgemein“.`))return;
+    S.groups=S.groups.filter(x=>x!==g);for(const id in S.favs)if(S.favs[id].g===g.id)S.favs[id].g='default';S.grp='all';
+  }
+  saveFavs();drawFavs();
+});
+document.addEventListener('change',e=>{const s=e.target.closest('[data-sel]');if(!s)return;S.favs[s.dataset.sel].g=s.value;saveFavs();drawFavs()});
 
 /* Ortssuche (Nominatim, nur bei Absenden, keine Autovervollständigung) */
 function go(x){
@@ -257,6 +317,7 @@ $('#sf').onsubmit=async e=>{
 };
 $('#res').onclick=e=>{const b=e.target.closest('[data-i]');if(b)go(S.res[b.dataset.i])};
 
+syncOrder();syncOpen();
 setFuel(S.fuel);
 if('serviceWorker'in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
 if(!S.key)openSettings();
