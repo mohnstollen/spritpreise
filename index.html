@@ -27,7 +27,7 @@ main{position:relative;flex:1;min-height:0}
 main>section{position:absolute;inset:0}
 #map{z-index:0}
 #list,#favs{overflow:auto;padding:10px 12px 16px}
-#msg{position:absolute;z-index:1100;top:10px;left:50%;transform:translateX(-50%);background:var(--ink);color:#fff;padding:6px 14px;border-radius:20px;font-size:14px;max-width:90%;text-align:center}
+#msg{position:absolute;z-index:1100;top:56px;left:50%;transform:translateX(-50%);background:var(--ink);color:#fff;padding:6px 14px;border-radius:20px;font-size:14px;max-width:90%;text-align:center}
 #msg:empty{display:none}
 #loc{position:absolute;z-index:1000;right:12px;bottom:16px;width:48px;height:48px;border-radius:50%;border:0;background:var(--ink);color:var(--amber);font-size:24px;box-shadow:0 2px 8px #0006}
 nav{display:flex;background:var(--card);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom)}
@@ -74,6 +74,11 @@ dialog menu #save{background:var(--ink);color:var(--amber);border-color:var(--in
 .mv{display:flex;gap:8px;align-items:center;margin-top:8px}
 .mv button{border:1px solid var(--line);background:none;border-radius:8px;padding:6px 12px}
 .mv select{flex:1;min-width:0;padding:6px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--fg)}
+#views{position:absolute;z-index:1000;top:10px;left:10px;right:10px;display:flex;gap:6px;overflow-x:auto;pointer-events:none;scrollbar-width:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
+#views::-webkit-scrollbar{display:none}
+#views button{pointer-events:auto;flex:none;background:var(--card);color:var(--fg);border:1px solid var(--line);border-radius:18px;padding:7px 14px;font-weight:600;box-shadow:0 1px 4px #0004}
+#views button[data-vadd]{color:var(--mut)}
+dialog select{display:block;width:100%;margin-top:6px;padding:10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--fg)}
 @media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important}}
 </style>
 </head>
@@ -89,6 +94,7 @@ dialog menu #save{background:var(--ink);color:var(--amber);border-color:var(--in
 <main>
   <div id="msg" role="status"></div>
   <div id="res" hidden></div>
+  <div id="views"></div>
   <section id="map"><button id="loc" aria-label="Mein Standort">◎</button></section>
   <section id="list" hidden>
     <div class="sortbar">Sortieren:
@@ -107,6 +113,9 @@ dialog menu #save{background:var(--ink);color:var(--amber);border-color:var(--in
     <label>Tankerkönig API-Key
       <input id="key" autocomplete="off" spellcheck="false" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx">
     </label>
+    <label style="margin-top:12px">Startansicht
+      <select id="start"></select>
+    </label>
     <p class="mut">Den kostenlosen Key gibt es auf creativecommons.tankerkoenig.de. Er wird nur lokal in diesem Browser gespeichert. Preisdaten: Tankerkönig.de (CC BY 4.0).</p>
     <menu><button value="cancel">Abbrechen</button><button id="save" value="ok">Speichern</button></menu>
   </form>
@@ -116,7 +125,7 @@ dialog menu #save{background:var(--ink);color:var(--amber);border-color:var(--in
 <script>
 const $=s=>document.querySelector(s), $$=s=>document.querySelectorAll(s);
 const LS={get:(k,d)=>{try{return JSON.parse(localStorage.getItem(k))??d}catch{return d}},set:(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch{}}};
-const S={key:LS.get('key',''),fuel:LS.get('fuel','e5'),sort:LS.get('sort','dist'),favs:LS.get('favs',{}),fp:{},fpT:0,wait:0,open:LS.get('open',false),grp:'all',groups:LS.get('groups',[{id:'default',name:'Allgemein'}]),order:[],stations:[],me:null,view:'map'};
+const S={key:LS.get('key',''),fuel:LS.get('fuel','e5'),sort:LS.get('sort','dist'),favs:LS.get('favs',{}),fp:{},fpT:0,wait:0,open:LS.get('open',false),grp:'all',groups:LS.get('groups',[{id:'default',name:'Allgemein'}]),order:[],views:LS.get('views',[]),stations:[],me:null,view:'map'};
 const FN={e5:'E5',e10:'E10',diesel:'Diesel'};
 const API='https://creativecommons.tankerkoenig.de/json/';
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -228,6 +237,7 @@ async function favs(){
 function show(v){
   S.view=v;
   for(const k of['map','list','favs'])$('#'+k).hidden=k!==v;
+  $('#views').hidden=v!=='map';
   $$('nav button').forEach(b=>b.classList.toggle('on',b.dataset.v===v));
   if(v==='map')map.invalidateSize();
   if(v==='list')list();
@@ -240,13 +250,19 @@ function setFuel(f){
   pins();if(S.view==='list')list();if(S.view==='favs')favs();
 }
 
-function openSettings(){$('#key').value=S.key;$('#dlg').showModal()}
+function openSettings(){
+  const d=$('#dlg');if(d.open)return;
+  $('#key').value=S.key;
+  const cur=LS.get('start','');
+  $('#start').innerHTML='<option value="">Mein Standort</option>'+S.views.map(v=>`<option value="${esc(v.id)}"${v.id===cur?' selected':''}>${esc(v.name)}</option>`).join('');
+  d.showModal();
+}
 
 /* Events */
 map.on('moveend',()=>{clearTimeout(tmr);tmr=setTimeout(load,1500)});
 $('#loc').onclick=locate;
 $('#cfg').onclick=openSettings;
-$('#dlg').addEventListener('close',e=>{if(e.target.returnValue==='ok'){S.key=$('#key').value.trim();LS.set('key',S.key);load(true)}});
+$('#dlg').addEventListener('close',e=>{if(e.target.returnValue==='ok'){S.key=$('#key').value.trim();LS.set('key',S.key);LS.set('start',$('#start').value);load(true)}});
 $('#fuel').onclick=e=>{const b=e.target.closest('[data-f]');if(b)setFuel(b.dataset.f)};
 $('nav').onclick=e=>{const b=e.target.closest('[data-v]');if(b)show(b.dataset.v)};
 $('.sortbar').onclick=e=>{const b=e.target.closest('[data-s]');if(b){S.sort=b.dataset.s;LS.set('sort',S.sort);list()}};
@@ -294,6 +310,42 @@ document.addEventListener('click',e=>{
 });
 document.addEventListener('change',e=>{const s=e.target.closest('[data-sel]');if(!s)return;S.favs[s.dataset.sel].g=s.value;saveFavs();drawFavs()});
 
+/* Gespeicherte Kartenausschnitte */
+function drawViews(){
+  $('#views').innerHTML='<button data-vadd>＋ Ausschnitt</button>'+S.views.map(v=>`<button data-view="${esc(v.id)}">${esc(v.name)}</button>`).join('');
+}
+function openView(v){
+  S.pin=[v.lat,v.lng];pinMarker?.remove();
+  map.setView([v.lat,v.lng],v.z,{animate:false});
+  clearTimeout(tmr);load();
+}
+function saveView(){
+  const nm=(prompt('Name für diesen Kartenausschnitt')||'').trim();if(!nm)return;
+  const c=map.getCenter();
+  S.views.push({id:'v'+Date.now(),name:nm,lat:c.lat,lng:c.lng,z:map.getZoom()});
+  LS.set('views',S.views);drawViews();
+  msg('Gespeichert. Zum Umbenennen oder Löschen lange drücken.');setTimeout(()=>msg(''),3500);
+}
+function editView(id){
+  const v=S.views.find(x=>x.id===id);if(!v)return;
+  const nm=prompt('Neuer Name (leer lassen zum Löschen)',v.name);if(nm===null)return;
+  const s=nm.trim();
+  if(!s){if(confirm(`Ausschnitt „${v.name}“ löschen?`)){S.views=S.views.filter(x=>x!==v);if(LS.get('start','')===id)LS.set('start','')}}
+  else v.name=s;
+  LS.set('views',S.views);drawViews();
+}
+let lpT,lp=false;
+const vb=$('#views');
+vb.addEventListener('pointerdown',e=>{const b=e.target.closest('[data-view]');if(!b)return;lp=false;lpT=setTimeout(()=>{lp=true;editView(b.dataset.view)},600)});
+['pointerup','pointercancel'].forEach(ev=>vb.addEventListener(ev,()=>clearTimeout(lpT)));
+vb.addEventListener('contextmenu',e=>e.preventDefault());
+vb.onclick=e=>{
+  if(lp){lp=false;return}
+  if(e.target.closest('[data-vadd]'))return saveView();
+  const b=e.target.closest('[data-view]');if(!b)return;
+  const v=S.views.find(x=>x.id===b.dataset.view);if(v)openView(v);
+};
+
 /* Ortssuche (Nominatim, nur bei Absenden, keine Autovervollständigung) */
 function go(x){
   $('#res').hidden=true;S.pin=[+x.lat,+x.lon];
@@ -320,8 +372,10 @@ $('#res').onclick=e=>{const b=e.target.closest('[data-i]');if(b)go(S.res[b.datas
 syncOrder();syncOpen();
 setFuel(S.fuel);
 if('serviceWorker'in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
+drawViews();
 if(!S.key)openSettings();
-locate();
+const sv=S.views.find(v=>v.id===LS.get('start',''));
+if(sv)openView(sv);else locate();
 </script>
 </body>
 </html>
