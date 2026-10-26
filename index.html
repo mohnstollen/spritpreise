@@ -271,18 +271,25 @@ const layer=L.layerGroup().addTo(map);
    Der Zeitstempel im URL erzwingt alle 5 Minuten frische Kacheln. */
 const DARK=matchMedia('(prefers-color-scheme: dark)');
 map.createPane('traffic').style.zIndex=250;
-let traffic=null,trafficT=0,trafficErr=false;
+let traffic=null,trafficT=0,trafficErr=false,trafficWhy='';
 // „Nur Staus“: relative-delay färbt nur Abschnitte, auf denen es langsamer als normal geht
 const trafficStyle=()=>S.tstyle==='jam'?'relative-delay':DARK.matches?'relative0-dark':'relative0';
-const trafficUrl=()=>`https://api.tomtom.com/traffic/map/4/tile/flow/${trafficStyle()}/{z}/{x}/{y}.png?key=${encodeURIComponent(S.tt)}&tileSize=256&thickness=14&t=${trafficT}`;
+const trafficUrl=()=>`https://api.tomtom.com/traffic/map/4/tile/flow/${trafficStyle()}/{z}/{x}/{y}.png?key=${encodeURIComponent(S.tt)}&tileSize=256&t=${trafficT}`;
 function setTraffic(on){
   S.traffic=on;LS.set('traffic',on);$('#trf').setAttribute('aria-pressed',on&&!!S.tt);
-  traffic?.remove();traffic=null;trafficErr=false;
+  traffic?.remove();traffic=null;trafficErr=false;trafficWhy='';$('#trf').textContent='Verkehr';
   $('#map').classList.toggle('trf',on&&!!S.tt);
   if(!on||!S.tt)return;
   trafficT=Math.floor(Date.now()/3e5);
   traffic=L.tileLayer(trafficUrl(),{pane:'traffic',maxZoom:19,attribution:'Verkehr © TomTom'})
-    .on('tileerror',()=>{if(!trafficErr&&navigator.onLine){trafficErr=true;msg('Verkehrslage nicht verfügbar. TomTom-Key prüfen.');setTimeout(()=>msg(''),4000)}})
+    .on('tileerror',e=>{
+      if(trafficErr||!navigator.onLine)return;
+      trafficErr=true;
+      // Kachel einmal direkt abfragen, um TomToms Begründung (Status und Text) anzeigen zu können
+      fetch(e.tile.src).then(async r=>r.ok?'':`HTTP ${r.status}${(t=>t?': '+t:'')((await r.text()).trim().slice(0,80))}`)
+        .catch(()=>'keine Verbindung zu TomTom')
+        .then(d=>{if(!d){trafficErr=false;return}trafficWhy=d;$('#trf').textContent='Verkehr ⚠';msg(`Verkehrslage nicht verfügbar (${d})`);setTimeout(()=>msg(''),8000)});
+    })
     .addTo(map);
 }
 function refreshTraffic(){
@@ -292,6 +299,10 @@ function refreshTraffic(){
 setInterval(refreshTraffic,60000);
 DARK.addEventListener?.('change',()=>traffic?.setUrl(trafficUrl()));
 $('#trf').onclick=async()=>{
+  if(S.tt&&trafficWhy){
+    if(await ask({title:'Verkehrslage nicht verfügbar',text:`TomTom antwortet: ${trafficWhy}. Prüfe den TomTom-Key in den Einstellungen und ob er unter developer.tomtom.com aktiv ist.`,ok:'Ausschalten',cancel:'Schließen'}))setTraffic(false);
+    return;
+  }
   if(S.tt)return setTraffic(!S.traffic);
   if(await ask({title:'TomTom-Key fehlt',text:'Für die Verkehrslage brauchst du einen kostenlosen API-Key von developer.tomtom.com. Trag ihn danach in den Einstellungen ein.',ok:'Zu den Einstellungen'}))openSettings();
 };
