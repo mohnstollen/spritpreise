@@ -18,7 +18,7 @@ body{display:flex;flex-direction:column;background:var(--bg);color:var(--fg);fon
 button,input{font:inherit;color:inherit}
 button{cursor:pointer}
 :focus-visible{outline:3px solid var(--amber);outline-offset:2px}
-header{display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap;padding:8px 12px;background:var(--ink);color:#fff}
+header{display:flex;gap:6px;align-items:center;justify-content:space-between;flex-wrap:wrap;padding:8px 12px;background:var(--ink);color:#fff}
 .seg{display:flex;border:1px solid #3a444c;border-radius:8px;overflow:hidden}
 .seg button{background:none;border:0;color:#cfd6da;padding:8px 14px;font-weight:600}
 .seg button.on{background:var(--amber);color:#14181c}
@@ -29,7 +29,7 @@ main>section{position:absolute;inset:0}
 #list,#favs{overflow:auto;padding:10px 12px 16px}
 #msg{position:absolute;z-index:1100;top:56px;left:50%;transform:translateX(-50%);background:var(--ink);color:#fff;padding:6px 14px;border-radius:20px;font-size:14px;max-width:90%;text-align:center}
 #msg:empty{display:none}
-#loc{position:absolute;z-index:1000;right:12px;bottom:16px;width:48px;height:48px;border-radius:50%;border:0;background:var(--ink);color:var(--amber);font-size:24px;box-shadow:0 2px 8px #0006}
+#loc{position:absolute;z-index:1000;right:12px;bottom:44px;width:48px;height:48px;border-radius:50%;border:0;background:var(--ink);color:var(--amber);font-size:24px;box-shadow:0 2px 8px #0006}
 nav{display:flex;background:var(--card);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom)}
 nav button{flex:1;background:none;border:0;padding:12px 0;color:var(--mut);font-weight:600;border-top:3px solid transparent}
 nav button.on{color:var(--fg);border-top-color:var(--amber)}
@@ -60,13 +60,11 @@ dialog input{display:block;width:100%;margin-top:6px;padding:10px;border:1px sol
 dialog menu{display:flex;justify-content:flex-end;gap:8px;padding:0;margin:14px 0 0}
 dialog menu button{border:1px solid var(--line);background:none;border-radius:8px;padding:8px 14px}
 dialog menu #save{background:var(--ink);color:var(--amber);border-color:var(--ink);font-weight:600}
-#sf{flex:1 1 100%;order:3;display:flex;gap:8px}
+#sf{flex:1 1 100%;order:3;display:flex;gap:8px;min-width:0}
 #sf input{flex:1;min-width:0;padding:9px 12px;border:1px solid #3a444c;border-radius:8px;background:#222a31;color:#fff}
 #sf button{background:var(--amber);color:#14181c;border:0;border-radius:8px;padding:0 14px;font-weight:700}
 #res{position:absolute;z-index:1200;top:8px;left:12px;right:12px;background:var(--card);border:1px solid var(--line);border-radius:10px;box-shadow:0 4px 16px #0006;overflow:hidden}
 #res button{display:block;width:100%;text-align:left;background:none;border:0;border-bottom:1px solid var(--line);padding:10px 12px}
-#open{background:none;border:1px solid #3a444c;color:#cfd6da;border-radius:8px;padding:8px 12px;font-weight:600}
-#open[aria-pressed=true]{background:var(--amber);color:#14181c;border-color:var(--amber)}
 .act button.t{font-size:15px;font-weight:600;padding:8px 12px}
 .grpbar{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
 .grpbar button{border:1px solid var(--line);background:var(--card);border-radius:16px;padding:6px 12px}
@@ -79,7 +77,55 @@ dialog menu #save{background:var(--ink);color:var(--amber);border-color:var(--in
 #views button{pointer-events:auto;flex:none;background:var(--card);color:var(--fg);border:1px solid var(--line);border-radius:18px;padding:7px 14px;font-weight:600;box-shadow:0 1px 4px #0004}
 #views button[data-vadd]{color:var(--mut)}
 dialog select{display:block;width:100%;margin-top:6px;padding:10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--fg)}
+.sortbar{flex-wrap:wrap}
+#stand{margin-left:auto;font-size:14px}
+.sv{margin-top:6px;font-size:14px;font-weight:600}
+.sv.g{color:var(--good)}.sv.r{color:var(--bad)}
+.two{display:flex;gap:10px;margin-top:12px}
+.two label{flex:1;min-width:0}
 @media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important}}
+.leaflet-container{background:var(--bg)}
+@media(prefers-color-scheme:dark){.leaflet-tile-pane{filter:invert(1) hue-rotate(180deg) brightness(.95) contrast(.9)}}
+.leaflet-traffic-pane{pointer-events:none}
+.fab{position:absolute;z-index:1000;right:12px;bottom:104px;display:flex;flex-direction:column;gap:8px;align-items:flex-end}
+.fab button,.fab a{background:var(--card);color:var(--fg);border:1px solid var(--line);border-radius:18px;padding:7px 14px;font-weight:600;font-size:14px;text-decoration:none;box-shadow:0 1px 4px #0004}
+.fab a{font-size:13px;padding:5px 12px;color:var(--mut)}
+#trf[aria-pressed=true]{background:var(--amber);color:#14181c;border-color:var(--amber)}
+.pin.dot{font-size:0;width:12px;height:12px;padding:0;border-radius:50%;transform:translate(-50%,-50%)}
+.hb{background:none;border:1px solid #3a444c;color:#cfd6da;border-radius:8px;padding:8px 9px;font-weight:600}
+.hb[aria-pressed=true]{background:var(--amber);color:#14181c;border-color:var(--amber)}
+.tg{display:flex;gap:6px;margin-left:auto}
+.seg button{padding:8px 10px}
+#cfg{padding:6px 4px}
+.act{flex-wrap:wrap;gap:6px}
+.act button.t{font-size:14px;padding:8px 10px}
+.act a{padding:8px 12px}
+.sum{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:8px 12px;margin-bottom:8px;font-size:14px}
+.sum b{font-variant-numeric:tabular-nums}
+.sum sup,.spk sup{font-size:.6em}
+.spk{margin-top:8px}
+.spk svg{display:block;width:100%;height:36px;overflow:visible;touch-action:pan-y}
+.spk path{fill:none;stroke:var(--fg);stroke-width:2;stroke-linejoin:round}
+.spk span{display:block;font-variant-numeric:tabular-nums}
+#upd{position:absolute;z-index:1300;top:100px;left:50%;transform:translateX(-50%);display:flex;gap:10px;align-items:center;background:var(--ink);color:#fff;padding:6px 6px 6px 14px;border-radius:20px;font-size:14px;white-space:nowrap;box-shadow:0 2px 8px #0006}
+#upd button{background:var(--amber);color:#14181c;border:0;border-radius:14px;padding:4px 12px;font-weight:700}
+dialog menu.rv{flex-direction:row-reverse;justify-content:flex-start}
+dialog menu .del{margin-right:auto;color:var(--bad);border-color:var(--bad)}
+dialog menu .pri{background:var(--ink);color:var(--amber);border-color:var(--ink);font-weight:600}
+@media(prefers-color-scheme:dark){dialog menu .pri,dialog menu #save{background:var(--amber);color:#14181c;border-color:var(--amber)}}
+#askP{margin:0 0 4px}
+#askP p{margin:0 0 8px}
+.hrs{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums}
+.hrs td{padding:4px 0;border-bottom:1px solid var(--line)}
+.hrs td+td{text-align:right}
+dialog label.chk{display:flex;gap:10px;align-items:center;font-weight:600}
+dialog label.chk input{display:inline;width:auto;margin:0}
+dialog h4{margin:14px 0 6px}
+.brands{display:grid;grid-template-columns:1fr 1fr;gap:6px 12px;max-height:40vh;overflow:auto}
+.brands label{font-weight:400}
+.row{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.row button{border:1px solid var(--line);background:none;border-radius:8px;padding:8px 12px}
+.lnk{background:none;border:0;padding:0;color:var(--mut);text-decoration:underline;font-size:14px}
 </style>
 </head>
 <body>
@@ -87,19 +133,28 @@ dialog select{display:block;width:100%;margin-top:6px;padding:10px;border:1px so
   <div class="seg" id="fuel" role="group" aria-label="Spritsorte">
     <button data-f="e5">E5</button><button data-f="e10">E10</button><button data-f="diesel">Diesel</button>
   </div>
-  <button id="open" aria-pressed="false">Offen</button>
+  <div class="tg">
+    <button id="open" class="hb" aria-pressed="false">Offen</button>
+    <button id="flb" class="hb" aria-pressed="false">Filter</button>
+  </div>
   <button id="cfg" aria-label="Einstellungen">⚙</button>
   <form id="sf" role="search"><input id="q" type="search" placeholder="Ort oder PLZ suchen" aria-label="Ort oder PLZ suchen" autocomplete="off"><button>Suchen</button></form>
 </header>
 <main>
   <div id="msg" role="status"></div>
+  <div id="upd" role="status" hidden>Neue Version verfügbar <button id="reload">Neu laden</button></div>
   <div id="res" hidden></div>
   <div id="views"></div>
-  <section id="map"><button id="loc" aria-label="Mein Standort">◎</button></section>
+  <section id="map">
+    <div class="fab"><a id="gmap" href="https://www.google.com/maps/data=!5m1!1e1" target="_blank" rel="noopener" aria-label="Verkehrslage in Google Maps öffnen">Google Maps ↗</a><button id="trf" aria-pressed="false">Verkehr</button></div>
+    <button id="loc" aria-label="Mein Standort">◎</button>
+  </section>
   <section id="list" hidden>
     <div class="sortbar">Sortieren:
-      <button data-s="dist">Entfernung</button><button data-s="price">Preis</button>
+      <button data-s="dist">Entfernung</button><button data-s="price">Preis</button><button data-s="save" id="ssave">Ersparnis</button>
+      <span id="stand"></span>
     </div>
+    <div id="sum"></div>
     <div id="items"></div>
   </section>
   <section id="favs" hidden></section>
@@ -113,11 +168,50 @@ dialog select{display:block;width:100%;margin-top:6px;padding:10px;border:1px so
     <label>Tankerkönig API-Key
       <input id="key" autocomplete="off" spellcheck="false" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx">
     </label>
+    <label style="margin-top:12px">TomTom API-Key (Verkehrslage, optional)
+      <input id="tt" autocomplete="off" spellcheck="false" placeholder="Key von developer.tomtom.com">
+    </label>
+    <p class="mut">Für den Button „Verkehr“ auf der Karte: grün = frei, orange = zähflüssig, rot = Stau. Kostenlos bis 50.000 Kartenkacheln pro Tag.</p>
     <label style="margin-top:12px">Startansicht
       <select id="start"></select>
     </label>
+    <label style="margin-top:12px">Navigation mit
+      <select id="navapp">
+        <option value="google">Google Maps</option>
+        <option value="apple">Apple Karten</option>
+        <option value="geo">Standard-App des Geräts (Android)</option>
+      </select>
+    </label>
+    <div class="two">
+      <label>Tankmenge (l)<input id="lit" inputmode="decimal" autocomplete="off" placeholder="40"></label>
+      <label>Verbrauch (l/100 km)<input id="cons" inputmode="decimal" autocomplete="off" placeholder="7"></label>
+    </div>
+    <p class="mut">Für den Umwegrechner in der Liste. Leer lassen schaltet ihn ab.</p>
+    <div class="row"><button type="button" id="exp">Daten exportieren</button><button type="button" id="impb">Daten importieren</button></div>
+    <input type="file" id="imp" accept="application/json,.json" hidden>
+    <p class="mut">Sichert Favoriten, Gruppen, Kartenausschnitte, Preisverlauf und Einstellungen als Datei. API-Keys werden nicht exportiert.</p>
     <p class="mut">Den kostenlosen Key gibt es auf creativecommons.tankerkoenig.de. Er wird nur lokal in diesem Browser gespeichert. Preisdaten: Tankerkönig.de (CC BY 4.0).</p>
-    <menu><button value="cancel">Abbrechen</button><button id="save" value="ok">Speichern</button></menu>
+    <menu class="rv"><button id="save" value="ok">Speichern</button><button value="cancel">Abbrechen</button></menu>
+  </form>
+</dialog>
+<dialog id="flt">
+  <form method="dialog">
+    <h3>Filter</h3>
+    <label class="chk"><input type="checkbox" id="nobab"> Autobahn-Tankstellen ausblenden</label>
+    <p class="mut">Erkannt an Name oder Adresse (z. B. „BAB“, „Raststätte“). Nicht immer zuverlässig.</p>
+    <h4>Marken</h4>
+    <div id="brands" class="brands"></div>
+    <p><button type="button" class="lnk" id="ball">Alle auswählen</button></p>
+    <p class="mut">Gilt für Karte und Liste, nicht für Favoriten.</p>
+    <menu class="rv"><button class="pri" value="ok">Übernehmen</button><button value="cancel">Abbrechen</button></menu>
+  </form>
+</dialog>
+<dialog id="ask">
+  <form method="dialog">
+    <h3 id="askT"></h3>
+    <div id="askP"></div>
+    <input id="askI" autocomplete="off" aria-labelledby="askT">
+    <menu class="rv"><button id="askOk" class="pri" value="ok">OK</button><button id="askC" value="cancel">Abbrechen</button><button id="askD" class="del" value="del">Löschen</button></menu>
   </form>
 </dialog>
 
@@ -125,25 +219,75 @@ dialog select{display:block;width:100%;margin-top:6px;padding:10px;border:1px so
 <script>
 const $=s=>document.querySelector(s), $$=s=>document.querySelectorAll(s);
 const LS={get:(k,d)=>{try{return JSON.parse(localStorage.getItem(k))??d}catch{return d}},set:(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch{}}};
-const S={key:LS.get('key',''),fuel:LS.get('fuel','e5'),sort:LS.get('sort','dist'),favs:LS.get('favs',{}),fp:{},fpT:0,wait:0,open:LS.get('open',false),grp:'all',groups:LS.get('groups',[{id:'default',name:'Allgemein'}]),order:[],views:LS.get('views',[]),stations:[],me:null,view:'map'};
+const S={key:LS.get('key',''),fuel:LS.get('fuel','e5'),sort:LS.get('sort','dist'),favs:LS.get('favs',{}),fp:LS.get('fp',{}),hist:LS.get('hist',{}),wait:0,open:LS.get('open',false),grp:'all',groups:LS.get('groups',[{id:'default',name:'Allgemein'}]),order:[],views:LS.get('views',[]),lit:LS.get('lit',40),cons:LS.get('cons',7),hide:LS.get('hide',[]),noBAB:LS.get('noBAB',false),tt:LS.get('tt',''),traffic:LS.get('traffic',false),nav:LS.get('nav',/iP(hone|ad|od)/.test(navigator.userAgent)?'apple':'google'),stations:[],me:null,view:'map'};
 const FN={e5:'E5',e10:'E10',diesel:'Diesel'};
 const API='https://creativecommons.tankerkoenig.de/json/';
+const FRESH=120000;
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const n=v=>typeof v==='number'?v:null;
 const fmt=p=>{if(p==null)return '–';const t=p.toFixed(3);return t.slice(0,-1).replace('.',',')+'<sup>'+t.slice(-1)+'</sup>'};
 const dist=(a,b)=>{const r=Math.PI/180,x=Math.sin((b[0]-a[0])*r/2)**2+Math.cos(a[0]*r)*Math.cos(b[0]*r)*Math.sin((b[1]-a[1])*r/2)**2;return 12742*Math.asin(Math.sqrt(x))};
+const km=d=>d.toFixed(1).replace('.',',')+' km';
 const prOf=s=>({e5:n(s.e5),e10:n(s.e10),diesel:n(s.diesel),open:s.isOpen!==false});
-const vis=s=>!S.open||s.isOpen!==false;
-const addr=s=>`${s.street||''} ${s.houseNumber||''}, ${s.postCode||''} ${s.place||''}`.replace(/\s+/g,' ').trim();
+const BAB=s=>/\bBAB\b|autobahn|rastst[aä]tte|rastanlage/i.test(s.name||'')||/^\s*(BAB|A\s?\d+)\b/i.test(s.street||'');
+const brandOf=s=>(s.brand||'').trim()||'Ohne Marke';
+const vis=s=>(!S.open||s.isOpen!==false)&&!(S.noBAB&&BAB(s))&&!S.hide.includes(brandOf(s));
+const addr=s=>[`${s.street||''} ${s.houseNumber||''}`,`${s.postCode||''} ${s.place||''}`].map(x=>x.replace(/\s+/g,' ').trim()).filter(Boolean).join(', ');
 const hhmm=ms=>new Date(ms).toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'});
+const when=ms=>{const d=new Date(ms);return (d.toDateString()===new Date().toDateString()?'':d.toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit'})+' ')+hhmm(ms)+' Uhr'};
 const msg=t=>{$('#msg').textContent=t||''};
+const num=v=>{const x=parseFloat(String(v).replace(',','.'));return x>0?x:0};
+const eur=x=>Math.abs(x).toFixed(2).replace('.',',')+' €';
+const keyMissing=()=>msg('Kein API-Key. Bitte unter ⚙ eintragen.');
+
+/* Eigener Dialog statt prompt()/confirm().
+   Mit input: OK → Text, Löschen → false, Abbrechen → null. Ohne input: OK → true, sonst null. */
+function ask({title,text='',html='',input=null,ok='OK',cancel='Abbrechen',del=false}){
+  const d=$('#ask'),i=$('#askI'),p=$('#askP');
+  $('#askT').textContent=title;
+  if(html)p.innerHTML=html;else p.textContent=text;
+  p.hidden=!text&&!html;i.hidden=input==null;i.value=input??'';
+  $('#askOk').textContent=ok;$('#askC').hidden=!cancel;$('#askC').textContent=cancel||'';$('#askD').hidden=!del;
+  d.returnValue='';d.showModal();if(input!=null)i.select();
+  return new Promise(res=>d.addEventListener('close',()=>{const v=d.returnValue;res(v==='ok'?(input==null?true:i.value.trim()):v==='del'?false:null)},{once:true}));
+}
 
 /* Karte */
 const map=L.map('map',{zoomControl:false,attributionControl:true}).setView([51.16,10.45],6);
 map.attributionControl.setPrefix(false);
 L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap · Preise: Tankerkönig.de (CC BY 4.0)'}).addTo(map);
 const layer=L.layerGroup().addTo(map);
-let meMarker,pinMarker,tmr,lastQ=null;
+
+/* Verkehrslage: TomTom-Flusskacheln in eigener Ebene (nicht vom Dark-Mode-Filter der Karte invertiert).
+   Der Zeitstempel im URL erzwingt alle 5 Minuten frische Kacheln. */
+const DARK=matchMedia('(prefers-color-scheme: dark)');
+map.createPane('traffic').style.zIndex=250;
+let traffic=null,trafficT=0,trafficErr=false;
+const trafficUrl=()=>`https://api.tomtom.com/traffic/map/4/tile/flow/${DARK.matches?'relative0-dark':'relative0'}/{z}/{x}/{y}.png?key=${encodeURIComponent(S.tt)}&tileSize=256&t=${trafficT}`;
+function setTraffic(on){
+  S.traffic=on;LS.set('traffic',on);$('#trf').setAttribute('aria-pressed',on&&!!S.tt);
+  traffic?.remove();traffic=null;trafficErr=false;
+  if(!on||!S.tt)return;
+  trafficT=Math.floor(Date.now()/3e5);
+  traffic=L.tileLayer(trafficUrl(),{pane:'traffic',maxZoom:19,attribution:'Verkehr © TomTom'})
+    .on('tileerror',()=>{if(!trafficErr&&navigator.onLine){trafficErr=true;msg('Verkehrslage nicht verfügbar. TomTom-Key prüfen.');setTimeout(()=>msg(''),4000)}})
+    .addTo(map);
+}
+function refreshTraffic(){
+  const t=Math.floor(Date.now()/3e5);
+  if(traffic&&t!==trafficT&&document.visibilityState==='visible'){trafficT=t;traffic.setUrl(trafficUrl())}
+}
+setInterval(refreshTraffic,60000);
+DARK.addEventListener?.('change',()=>traffic?.setUrl(trafficUrl()));
+$('#trf').onclick=async()=>{
+  if(S.tt)return setTraffic(!S.traffic);
+  if(await ask({title:'TomTom-Key fehlt',text:'Für die Verkehrslage brauchst du einen kostenlosen API-Key von developer.tomtom.com. Trag ihn danach in den Einstellungen ein.',ok:'Zu den Einstellungen'}))openSettings();
+};
+/* Zusatz: aktuellen Ausschnitt mit Verkehrsebene in Google Maps öffnen */
+function syncGmap(){const c=map.getCenter();$('#gmap').href=`https://www.google.com/maps/@${c.lat.toFixed(5)},${c.lng.toFixed(5)},${map.getZoom()}z/data=!5m1!1e1`}
+map.on('moveend',syncGmap);
+L.DomEvent.disableClickPropagation($('.fab'));
+let meMarker,pinMarker,tmr,lastQ=null,reqN=0,marks=[];
 const ref=()=>S.pin||S.me||[map.getCenter().lat,map.getCenter().lng];
 
 function locate(){
@@ -157,81 +301,209 @@ function locate(){
 }
 
 async function load(force){
-  if(!S.key)return openSettings();
+  if(!S.key)return keyMissing();
   if(map.getZoom()<11)return msg('Näher heranzoomen, um Preise zu laden');
+  if(!navigator.onLine)return msg('Offline'+(lastQ?', Stand '+when(lastQ.t):''));
   if(!force&&Date.now()<S.wait)return msg('Abfragen pausiert bis '+hhmm(S.wait)+' Uhr');
   const c=map.getCenter(),ne=map.getBounds().getNorthEast();
   const rad=Math.min(25,Math.max(1,dist([c.lat,c.lng],[ne.lat,ne.lng])));
   if(!force&&lastQ&&Date.now()-lastQ.t<300000&&dist([c.lat,c.lng],lastQ.c)<lastQ.rad*0.3&&rad<=lastQ.rad*1.25)return;
+  const q=++reqN;
   try{
     msg('Lade Preise …');
     const r=await (await fetch(`${API}list.php?lat=${c.lat}&lng=${c.lng}&rad=${rad.toFixed(1)}&sort=dist&type=all&apikey=${encodeURIComponent(S.key)}`)).json();
+    if(q!==reqN)return;
     if(!r.ok)throw new Error(r.message||'API-Fehler');
     S.stations=r.stations||[];lastQ={c:[c.lat,c.lng],rad,t:Date.now()};msg('');
+    LS.set('last',{stations:S.stations,q:lastQ});
+    favsFromList();
     pins();if(S.view==='list')list();
   }catch(e){
+    if(q!==reqN)return;
     S.wait=Date.now()+120000;
     msg((e instanceof TypeError?'Keine Antwort von Tankerkönig (evtl. Abfrage-Limit)':'Fehler: '+e.message)+'. Pause bis '+hhmm(S.wait)+' Uhr');
   }
 }
 
-function card(s,pr,d,extra=''){
-  const a=`${s.street||''} ${s.houseNumber||''}, ${s.postCode||''} ${s.place||''}`.replace(/\s+/g,' ').trim();
-  const nav='https://www.google.com/maps/dir/?api=1&destination='+encodeURIComponent(a);
-  const all=['e5','e10','diesel'].map(k=>`<span class="${k===S.fuel?'sel':''}">${FN[k]} ${fmt(pr[k])}</span>`).join('');
-  return `<div class="card"><div class="r1"><b>${esc(s.brand||s.name)}</b><span class="p">${fmt(pr[S.fuel])}</span></div>
-  <div class="mut">${esc(s.brand&&s.name!==s.brand?s.name+', ':'')}${esc(a)}${d!=null?' · '+d.toFixed(1).replace('.',',')+' km':''}${pr.open===false?' · geschlossen':''}</div>
-  <div class="all">${all}</div>
-  <div class="act"><button data-fav="${esc(s.id)}" aria-label="Favorit umschalten">${S.favs[s.id]?'★':'☆'}</button><a href="${nav}" target="_blank" rel="noopener">Navigation</a><button class="t" data-share="${esc(s.id)}">Teilen</button></div>${extra}</div>`;
+function navUrl(s){
+  const ll=s.lat+','+s.lng;
+  if(S.nav==='apple')return 'https://maps.apple.com/?daddr='+ll;
+  if(S.nav==='geo')return `geo:${ll}?q=${ll}(${encodeURIComponent(s.brand||s.name||'Tankstelle')})`;
+  return 'https://www.google.com/maps/dir/?api=1&destination='+ll;
 }
 
+function card(s,pr,d,extra=''){
+  const id=esc(s.id),u=navUrl(s),fav=!!S.favs[s.id];
+  const all=['e5','e10','diesel'].map(k=>`<span class="${k===S.fuel?'sel':''}">${FN[k]} ${fmt(pr[k])}</span>`).join('');
+  return `<div class="card"><div class="r1"><b>${esc(s.brand||s.name)}</b><span class="p">${fmt(pr[S.fuel])}</span></div>
+  <div class="mut">${esc(s.brand&&s.name!==s.brand?s.name+', ':'')}${esc(addr(s))}${d!=null?' · '+km(d)+' Luftlinie':''}${pr.open===false?' · geschlossen':''}</div>
+  <div class="all">${all}</div>
+  <div class="act"><button data-fav="${id}" aria-pressed="${fav}" aria-label="Favorit">${fav?'★':'☆'}</button><a href="${esc(u)}"${u.startsWith('http')?' target="_blank" rel="noopener"':''}>Navigation</a><button class="t" data-share="${id}">Teilen</button><button class="t" data-hours="${id}">Zeiten</button></div>${extra}</div>`;
+}
+
+/* Preis-Pins; überlappende teurere Pins werden zu Punkten */
 function pins(){
-  layer.clearLayers();
+  layer.clearLayers();marks=[];
   const vs=S.stations.filter(vis);
   const v=vs.map(s=>n(s[S.fuel])).filter(x=>x!=null).sort((a,b)=>a-b);
   const lo=v[Math.floor(v.length/3)],hi=v[Math.floor(v.length*2/3)];
+  const stand=lastQ?`<div class="mut" style="margin-top:6px">Stand ${when(lastQ.t)}</div>`:'';
   vs.forEach(s=>{
     const p=prOf(s),x=p[S.fuel],c=x==null?'':x<=lo?'g':x>=hi?'r':'';
-    L.marker([s.lat,s.lng],{icon:L.divIcon({className:'',iconSize:[0,0],html:`<div class="pin ${c}">${fmt(x)}</div>`})})
-      .bindPopup(card(s,p,null),{minWidth:250}).addTo(layer);
+    const m=L.marker([s.lat,s.lng],{icon:L.divIcon({className:'',iconSize:[0,0],html:`<div class="pin ${c}">${fmt(x)}</div>`})})
+      .bindPopup(card(s,p,null,stand),{minWidth:250}).addTo(layer);
+    m.getElement()?.setAttribute('aria-label',`${s.brand||s.name}, ${x==null?'kein Preis':x.toFixed(3).replace('.',',')+' Euro'}`);
+    marks.push({m,x});
+  });
+  declutter();
+}
+function declutter(){
+  const kept=[];
+  [...marks].sort((a,b)=>(a.x??99)-(b.x??99)).forEach((o,i)=>{
+    const pt=map.latLngToContainerPoint(o.m.getLatLng());
+    const hide=kept.some(q=>Math.abs(q.x-pt.x)<62&&Math.abs(q.y-pt.y)<24);
+    if(!hide)kept.push(pt);
+    o.m.getElement()?.firstElementChild?.classList.toggle('dot',hide);
+    o.m.setZIndexOffset(hide?-1000:1000-i);
   });
 }
 
+/* Umwegrechner: Kosten = Preis × (Tankmenge + Sprit für Hin- und Rückweg).
+   Luftlinie × 1,3 als grobe Schätzung der Straßenentfernung. Vergleich mit der nächsten Tankstelle. */
+const calcOn=()=>S.lit>0&&S.cons>0;
+const cost=o=>o.pr[S.fuel]*(S.lit+2*1.3*o.d*S.cons/100);
 function list(){
-  const r=ref();
+  const r=ref(),calc=calcOn(),srt=S.sort==='save'&&!calc?'price':S.sort;
   const a=S.stations.filter(vis).map(s=>({s,d:dist(r,[s.lat,s.lng]),pr:prOf(s)}));
-  a.sort(S.sort==='dist'?(x,y)=>x.d-y.d:(x,y)=>(x.pr[S.fuel]??99)-(y.pr[S.fuel]??99)||x.d-y.d);
-  $('#items').innerHTML=a.map(o=>card(o.s,o.pr,o.d)).join('')||'<p class="empty">Keine Tankstellen geladen. Wähle auf der Karte einen Ausschnitt mit Zoomstufe 11 oder näher.</p>';
-  $$('.sortbar button').forEach(b=>b.classList.toggle('on',b.dataset.s===S.sort));
+  const wp=a.filter(o=>o.pr[S.fuel]!=null);
+  const base=wp.reduce((m,o)=>!m||o.d<m.d?o:m,null);
+  if(calc)wp.forEach(o=>o.c=cost(o));
+  a.sort(srt==='dist'?(x,y)=>x.d-y.d:srt==='save'?(x,y)=>(x.c??1e9)-(y.c??1e9)||x.d-y.d:(x,y)=>(x.pr[S.fuel]??99)-(y.pr[S.fuel]??99)||x.d-y.d);
+  const sv=o=>{
+    if(!calc||!base||o.c==null)return '';
+    if(o===base)return '<div class="sv mut">Nächste Tankstelle (Vergleichswert)</div>';
+    const x=base.c-o.c;
+    return Math.abs(x)<0.005?'<div class="sv mut">Kostet genauso viel wie die nächste</div>':`<div class="sv ${x>0?'g':'r'}">${eur(x)} ${x>0?'günstiger':'teurer'} als die nächste, inkl. Umweg</div>`;
+  };
+  if(wp.length){
+    const best=wp.reduce((m,o)=>o.pr[S.fuel]<m.pr[S.fuel]||(o.pr[S.fuel]===m.pr[S.fuel]&&o.d<m.d)?o:m);
+    const avg=wp.reduce((t,o)=>t+o.pr[S.fuel],0)/wp.length;
+    $('#sum').innerHTML=`Günstigste: <b>${fmt(best.pr[S.fuel])} €</b> bei ${esc(best.s.brand||best.s.name)}, ${km(best.d)} · Mittel <b>${fmt(avg)} €</b> · ${wp.length} Tankstellen`;
+  }
+  $('#sum').hidden=!wp.length;
+  $('#items').innerHTML=a.map(o=>card(o.s,o.pr,o.d,sv(o))).join('')||'<p class="empty">Keine Tankstellen geladen. Wähle auf der Karte einen Ausschnitt mit Zoomstufe 11 oder näher.</p>';
+  $('#ssave').hidden=!calc;
+  $('#stand').textContent=lastQ&&S.stations.length?'Stand '+when(lastQ.t):'';
+  $$('.sortbar button').forEach(b=>b.classList.toggle('on',b.dataset.s===srt));
 }
 
+/* Favoriten: Preise mit Zeitstempel je Station, Verlauf lokal (nur bei Preisänderung ein neuer Eintrag) */
 function gOf(id){return S.groups.some(g=>g.id===S.favs[id].g)?S.favs[id].g:'default'}
 function syncOrder(){S.order=LS.get('order',[]).filter(id=>S.favs[id]);for(const id in S.favs)if(!S.order.includes(id))S.order.push(id)}
-function saveFavs(){LS.set('favs',S.favs);LS.set('order',S.order);LS.set('groups',S.groups)}
+let persistAsked=false;
+function saveFavs(){
+  LS.set('favs',S.favs);LS.set('order',S.order);LS.set('groups',S.groups);
+  if(!persistAsked&&S.order.length){persistAsked=true;navigator.storage?.persisted?.().then(p=>p||navigator.storage.persist()).catch(()=>{})}
+}
+function saveFp(){LS.set('fp',S.fp);LS.set('hist',S.hist)}
+function rec(id,pr,t){
+  if(pr.e5==null&&pr.e10==null&&pr.diesel==null)return;
+  const h=S.hist[id]||(S.hist[id]=[]),l=h[h.length-1],e=[t,pr.e5,pr.e10,pr.diesel];
+  if(l&&t<=l[0])return;
+  if(!l||l[1]!==e[1]||l[2]!==e[2]||l[3]!==e[3])h.push(e);
+  const cut=t-30*864e5;while(h.length>2&&h[1][0]<cut)h.shift();
+  if(h.length>400)h.splice(0,h.length-400);
+}
+function favsFromList(){
+  if(!lastQ)return;let ch=false;
+  for(const s of S.stations)if(S.favs[s.id]&&!(S.fp[s.id]?.t>=lastQ.t)){S.fp[s.id]={...prOf(s),t:lastQ.t};rec(s.id,S.fp[s.id],lastQ.t);ch=true}
+  if(ch)saveFp();
+}
 function visFavs(){return S.order.filter(id=>S.grp==='all'||gOf(id)===S.grp)}
+
+const sparkPts={};
+function spark(id){
+  const t1=S.fp[id]?.t,h=S.hist[id],k={e5:1,e10:2,diesel:3}[S.fuel];
+  delete sparkPts[id];
+  if(!h||!t1)return '';
+  const t0=t1-7*864e5,pts=[];let prev=null;
+  for(const e of h){if(e[k]==null)continue;if(e[0]<=t0)prev=e[k];else pts.push([e[0],e[k]])}
+  if(prev!=null)pts.unshift([t0,prev]);
+  if(pts.length<2)return '';
+  pts.push([t1,pts[pts.length-1][1]]);
+  const a=pts[0][0],vs=pts.map(p=>p[1]),lo=Math.min(...vs),hi=Math.max(...vs),rg=hi-lo||.01;
+  const X=t=>((t-a)/(t1-a||1)*300).toFixed(1),Y=v=>(2+(hi-v)/rg*32).toFixed(1);
+  let d=`M${X(pts[0][0])} ${Y(pts[0][1])}`;
+  for(const[t,v]of pts.slice(1))d+=`H${X(t)}V${Y(v)}`;
+  sparkPts[id]=pts;
+  const span=a===t0?'Letzte 7 Tage':'Seit '+new Date(a).toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit'});
+  const lbl=`${span} (${FN[S.fuel]}): ${fmt(lo)} bis ${fmt(hi)} €`;
+  return `<div class="spk"><svg viewBox="0 0 300 36" preserveAspectRatio="none" role="img" aria-label="Preisverlauf ${esc(span)}: ${lo.toFixed(3).replace('.',',')} bis ${hi.toFixed(3).replace('.',',')} Euro" data-spk="${esc(id)}"><path d="${d}" vector-effect="non-scaling-stroke"/></svg><span class="mut" data-lbl="${esc(lbl)}">${lbl}</span></div>`;
+}
+
 function drawFavs(){
   const r=ref();
   const chips=[{id:'all',name:'Alle'},...S.groups].map(g=>`<button data-g="${esc(g.id)}" class="${g.id===S.grp?'on':''}">${esc(g.name)}</button>`).join('');
   const tools=S.grp!=='all'&&S.grp!=='default'?'<button data-gact="ren">Umbenennen</button><button data-gact="del">Gruppe löschen</button>':'';
   const ids=visFavs().filter(id=>!S.open||(S.fp[id]||{}).open!==false);
+  const ts=ids.map(id=>S.fp[id]?.t).filter(Boolean);
   const opts=id=>S.groups.map(g=>`<option value="${esc(g.id)}"${g.id===gOf(id)?' selected':''}>${esc(g.name)}</option>`).join('');
-  $('#favs').innerHTML=`<div class="grpbar">${chips}<button data-gact="add">＋ Gruppe</button>${tools}</div>`+
-    (ids.length?ids.map(id=>{const s=S.favs[id];return card(s,S.fp[id]||{},dist(r,[s.lat,s.lng]),`<div class="mv"><button data-mv="-1" data-id="${esc(id)}" aria-label="Nach oben">▲</button><button data-mv="1" data-id="${esc(id)}" aria-label="Nach unten">▼</button><select data-sel="${esc(id)}" aria-label="Gruppe">${opts(id)}</select></div>`)}).join(''):'<p class="empty">Keine Favoriten in dieser Ansicht. Tippe bei einer Tankstelle auf ☆.</p>');
+  $('#favs').innerHTML=`<div class="grpbar">${chips}<button data-gact="add">＋ Gruppe</button>${tools}</div>`+(ts.length?`<p class="mut" style="margin:0 0 8px">Stand ${when(Math.min(...ts))}</p>`:'')+
+    (ids.length?ids.map(id=>{const s=S.favs[id];return card(s,S.fp[id]||{},dist(r,[s.lat,s.lng]),spark(id)+`<div class="mv"><button data-mv="-1" data-id="${esc(id)}" aria-label="Nach oben">▲</button><button data-mv="1" data-id="${esc(id)}" aria-label="Nach unten">▼</button><select data-sel="${esc(id)}" aria-label="Gruppe">${opts(id)}</select></div>`)}).join(''):'<p class="empty">Keine Favoriten in dieser Ansicht. Tippe bei einer Tankstelle auf ☆.</p>');
 }
 async function favs(){
   drawFavs();
-  const ids=Object.keys(S.favs);
-  if(!ids.length)return;
-  if(!S.key)return openSettings();
-  if(!ids.some(id=>!S.fp[id])&&Date.now()-S.fpT<120000)return;
+  const now=Date.now(),need=Object.keys(S.favs).filter(id=>!(now-(S.fp[id]?.t||0)<FRESH));
+  if(!need.length)return;
+  if(!S.key)return keyMissing();
+  if(!navigator.onLine)return msg('Offline: zeige zuletzt geladene Preise');
   try{
-    for(let i=0;i<ids.length;i+=10){
-      const r=await (await fetch(`${API}prices.php?ids=${ids.slice(i,i+10).join(',')}&apikey=${encodeURIComponent(S.key)}`)).json();
+    for(let i=0;i<need.length;i+=10){
+      const ids=need.slice(i,i+10);
+      const r=await (await fetch(`${API}prices.php?ids=${ids.join(',')}&apikey=${encodeURIComponent(S.key)}`)).json();
       if(!r.ok)throw new Error(r.message||'API-Fehler');
-      for(const id in r.prices){const p=r.prices[id];S.fp[id]={e5:n(p.e5),e10:n(p.e10),diesel:n(p.diesel),open:p.status==='open'}}
+      const t=Date.now();
+      for(const id of ids){
+        const p=r.prices?.[id];
+        if(!p){S.fp[id]={...S.fp[id],t};continue}
+        S.fp[id]={e5:n(p.e5),e10:n(p.e10),diesel:n(p.diesel),open:p.status!=='closed',t};rec(id,S.fp[id],t);
+      }
     }
-    S.fpT=Date.now();drawFavs();
+    saveFp();drawFavs();
   }catch(e){$('#favs').insertAdjacentHTML('afterbegin',`<p class="empty">Fehler: ${esc(e.message||'Netzwerk')}</p>`)}
+}
+/* Antippen oder Überfahren der Verlaufslinie zeigt den Preis zu diesem Zeitpunkt */
+function sparkHover(e){
+  const svg=e.target.closest?.('[data-spk]');if(!svg)return;
+  const pts=sparkPts[svg.dataset.spk];if(!pts)return;
+  const b=svg.getBoundingClientRect(),a=pts[0][0],z=pts[pts.length-1][0];
+  const t=a+Math.min(1,Math.max(0,(e.clientX-b.left)/b.width))*(z-a);
+  let v=pts[0][1];for(const p of pts)if(p[0]<=t)v=p[1];
+  const d=new Date(t);
+  svg.nextElementSibling.innerHTML=`${d.toLocaleDateString('de-DE',{weekday:'short',day:'2-digit',month:'2-digit'})} ${hhmm(t)}: <b>${fmt(v)} €</b>`;
+}
+$('#favs').addEventListener('pointermove',sparkHover);
+$('#favs').addEventListener('pointerdown',sparkHover);
+$('#favs').addEventListener('pointerout',e=>{const s=e.target.closest?.('[data-spk]');if(s)s.nextElementSibling.innerHTML=s.nextElementSibling.dataset.lbl});
+
+/* Öffnungszeiten auf Abruf (eine Anfrage je Station, im Speicher zwischengespeichert) */
+const hrsC={};
+async function hours(id){
+  const s=S.stations.find(x=>x.id===id)||S.favs[id],nm=s?.brand||s?.name||'Tankstelle';
+  if(!S.key)return keyMissing();
+  try{
+    if(!hrsC[id]){
+      msg('Lade Öffnungszeiten …');
+      const r=await (await fetch(`${API}detail.php?id=${encodeURIComponent(id)}&apikey=${encodeURIComponent(S.key)}`)).json();
+      msg('');
+      if(!r.ok)throw new Error(r.message||'API-Fehler');
+      hrsC[id]=r.station||{};
+    }
+    const st=hrsC[id],t=x=>String(x||'').slice(0,5),ot=st.openingTimes||[];
+    let h=st.wholeDay?'<p>Durchgehend geöffnet (24 Stunden)</p>':ot.length?'<table class="hrs">'+ot.map(o=>`<tr><td>${esc(o.text)}</td><td>${esc(t(o.start))}–${esc(t(o.end))} Uhr</td></tr>`).join('')+'</table>':'<p>Keine Öffnungszeiten hinterlegt.</p>';
+    if((st.overrideOpeningTimes||[]).length)h+='<p class="mut">Es gibt abweichende Sonderöffnungszeiten.</p>';
+    ask({title:'Öffnungszeiten '+nm,html:h,ok:'Schließen',cancel:null});
+  }catch(e){msg('Öffnungszeiten nicht verfügbar: '+(e.message||'Netzwerk'));setTimeout(()=>msg(''),3000)}
 }
 
 function show(v){
@@ -243,70 +515,137 @@ function show(v){
   if(v==='list')list();
   if(v==='favs')favs();
 }
+function redraw(){pins();if(S.view==='list')list();if(S.view==='favs')favs()}
 
 function setFuel(f){
   S.fuel=f;LS.set('fuel',f);
   $$('#fuel button').forEach(b=>b.classList.toggle('on',b.dataset.f===f));
-  pins();if(S.view==='list')list();if(S.view==='favs')favs();
+  redraw();
 }
 
 function openSettings(){
   const d=$('#dlg');if(d.open)return;
   $('#key').value=S.key;
+  $('#tt').value=S.tt;
+  $('#lit').value=S.lit?String(S.lit).replace('.',','):'';
+  $('#cons').value=S.cons?String(S.cons).replace('.',','):'';
+  $('#navapp').value=S.nav;
   const cur=LS.get('start','');
   $('#start').innerHTML='<option value="">Mein Standort</option>'+S.views.map(v=>`<option value="${esc(v.id)}"${v.id===cur?' selected':''}>${esc(v.name)}</option>`).join('');
   d.showModal();
 }
 
+/* Filter: Marken ausblenden, Autobahn ausblenden */
+function syncFilter(){
+  $('#open').setAttribute('aria-pressed',S.open);
+  $('#flb').setAttribute('aria-pressed',S.noBAB||S.hide.length>0);
+}
+function openFilter(){
+  const cnt={};S.stations.forEach(s=>{const b=brandOf(s);cnt[b]=(cnt[b]||0)+1});
+  S.hide.forEach(b=>cnt[b]=cnt[b]||0);
+  const bs=Object.keys(cnt).sort((a,b)=>a==='Ohne Marke'?1:b==='Ohne Marke'?-1:a.localeCompare(b,'de'));
+  $('#nobab').checked=S.noBAB;
+  $('#brands').innerHTML=bs.length?bs.map(b=>`<label class="chk"><input type="checkbox" value="${esc(b)}"${S.hide.includes(b)?'':' checked'}> ${esc(b)}${cnt[b]?` <span class="mut">(${cnt[b]})</span>`:''}</label>`).join(''):'<p class="mut">Noch keine Tankstellen geladen.</p>';
+  $('#flt').showModal();
+}
+$('#flb').onclick=openFilter;
+$('#ball').onclick=()=>$$('#brands input').forEach(i=>i.checked=true);
+$('#flt').addEventListener('close',e=>{
+  if(e.target.returnValue!=='ok')return;
+  S.noBAB=$('#nobab').checked;S.hide=[...$$('#brands input')].filter(i=>!i.checked).map(i=>i.value);
+  LS.set('noBAB',S.noBAB);LS.set('hide',S.hide);syncFilter();redraw();
+});
+
+/* Daten sichern und wiederherstellen */
+const KEYS=['favs','order','groups','views','start','lit','cons','fuel','sort','open','hide','noBAB','nav','hist','traffic'];
+async function exportData(){
+  const data={app:'spritpreise',version:1,exported:new Date().toISOString()};
+  KEYS.forEach(k=>{const v=LS.get(k,null);if(v!=null)data[k]=v});
+  const name='spritpreise-'+new Date().toISOString().slice(0,10)+'.json';
+  if(window.Android)return Android.saveFile(name,JSON.stringify(data));
+  const file=new File([JSON.stringify(data)],name,{type:'application/json'});
+  try{if(navigator.canShare?.({files:[file]}))return await navigator.share({files:[file],title:name})}catch(e){if(e.name==='AbortError')return}
+  const a=document.createElement('a');a.href=URL.createObjectURL(file);a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+}
+$('#exp').onclick=exportData;
+$('#impb').onclick=()=>$('#imp').click();
+$('#imp').onchange=async e=>{
+  const f=e.target.files[0];e.target.value='';if(!f)return;
+  let d;
+  try{d=JSON.parse(await f.text());if(d?.app!=='spritpreise'||typeof d.favs!=='object'||Array.isArray(d.favs)||(d.views&&!Array.isArray(d.views))||(d.groups&&!Array.isArray(d.groups)))throw 0}
+  catch{return ask({title:'Import fehlgeschlagen',text:'Die Datei ist keine gültige Spritpreise-Sicherung.',cancel:null})}
+  const nf=Object.keys(d.favs).length,nv=(d.views||[]).length;
+  if(!await ask({title:'Daten importieren?',text:`Die Sicherung enthält ${nf} ${nf===1?'Favorit':'Favoriten'} und ${nv} ${nv===1?'Kartenausschnitt':'Kartenausschnitte'}. Deine aktuellen Favoriten, Gruppen, Ausschnitte und Einstellungen werden ersetzt. Der API-Key bleibt erhalten.`,ok:'Importieren'}))return;
+  KEYS.forEach(k=>{if(k in d)LS.set(k,d[k])});LS.set('fp',{});
+  location.reload();
+};
+
 /* Events */
 map.on('moveend',()=>{clearTimeout(tmr);tmr=setTimeout(load,1500)});
+map.on('zoomend',declutter);
 $('#loc').onclick=locate;
 $('#cfg').onclick=openSettings;
-$('#dlg').addEventListener('close',e=>{if(e.target.returnValue==='ok'){S.key=$('#key').value.trim();LS.set('key',S.key);LS.set('start',$('#start').value);load(true)}});
+$('#dlg').addEventListener('close',e=>{
+  if(e.target.returnValue!=='ok')return;
+  S.key=$('#key').value.trim();LS.set('key',S.key);LS.set('start',$('#start').value);
+  S.lit=num($('#lit').value);S.cons=num($('#cons').value);LS.set('lit',S.lit);LS.set('cons',S.cons);
+  S.nav=$('#navapp').value;LS.set('nav',S.nav);
+  const tt=$('#tt').value.trim();if(tt!==S.tt){S.tt=tt;LS.set('tt',tt);setTraffic(S.traffic||!!tt)}
+  msg('');redraw();load(true);
+});
+/* Nach Rückkehr in die App veraltete Preise nachladen */
+document.addEventListener('visibilitychange',()=>{
+  if(document.visibilityState!=='visible')return;
+  if(S.view==='favs')favs();
+  else if(lastQ&&Date.now()-lastQ.t>=300000)load();
+});
 $('#fuel').onclick=e=>{const b=e.target.closest('[data-f]');if(b)setFuel(b.dataset.f)};
 $('nav').onclick=e=>{const b=e.target.closest('[data-v]');if(b)show(b.dataset.v)};
 $('.sortbar').onclick=e=>{const b=e.target.closest('[data-s]');if(b){S.sort=b.dataset.s;LS.set('sort',S.sort);list()}};
-document.addEventListener('click',e=>{
-  const b=e.target.closest('[data-fav]');if(!b)return;
-  const id=b.dataset.fav,s=S.stations.find(x=>x.id===id)||S.favs[id];if(!s)return;
-  if(S.favs[id]){delete S.favs[id];S.order=S.order.filter(x=>x!==id)}
-  else{const{name,brand,street,houseNumber,postCode,place,lat,lng}=s;S.favs[id]={id,name,brand,street,houseNumber,postCode,place,lat,lng,g:'default'};S.order.push(id)}
-  saveFavs();
-  $$(`[data-fav="${CSS.escape(id)}"]`).forEach(x=>x.textContent=S.favs[id]?'★':'☆');
-  if(S.view==='favs')favs();
-});
+$('#open').onclick=()=>{S.open=!S.open;LS.set('open',S.open);syncFilter();redraw()};
 
-/* Teilen, Filter, Favoritengruppen */
-function syncOpen(){$('#open').setAttribute('aria-pressed',S.open)}
-$('#open').onclick=()=>{S.open=!S.open;LS.set('open',S.open);syncOpen();pins();if(S.view==='list')list();if(S.view==='favs')favs()};
+function toggleFav(id){
+  const s=S.stations.find(x=>x.id===id)||S.favs[id];if(!s)return;
+  if(S.favs[id]){delete S.favs[id];delete S.fp[id];delete S.hist[id];S.order=S.order.filter(x=>x!==id);saveFp()}
+  else{const{name,brand,street,houseNumber,postCode,place,lat,lng}=s;S.favs[id]={id,name,brand,street,houseNumber,postCode,place,lat,lng,g:'default'};S.order.push(id);favsFromList()}
+  saveFavs();
+  $$(`[data-fav="${CSS.escape(id)}"]`).forEach(x=>{x.textContent=S.favs[id]?'★':'☆';x.setAttribute('aria-pressed',!!S.favs[id])});
+  if(S.view==='favs')favs();
+}
 async function share(id){
   const st=S.stations.find(x=>x.id===id),s=st||S.favs[id];if(!s)return;
   const p=(st?prOf(st):S.fp[id]||{})[S.fuel];
   const link='https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(s.name+', '+addr(s));
   const text=`${s.brand||s.name}, ${s.place||''} – ${p==null?'kein Preis':p.toFixed(3).replace('.',',')+' €'} (${FN[S.fuel]}) – ${link}`;
   try{
+    if(window.Android)return Android.share(text);
     if(navigator.share)await navigator.share({text});
     else{await navigator.clipboard.writeText(text);msg('In die Zwischenablage kopiert');setTimeout(()=>msg(''),2000)}
   }catch{}
 }
+async function groupAction(act){
+  const g=S.groups.find(x=>x.id===S.grp);
+  if(act==='add'){const nm=await ask({title:'Neue Gruppe',input:'',ok:'Anlegen'});if(!nm)return;const id='g'+Date.now();S.groups.push({id,name:nm});S.grp=id}
+  else if(act==='ren'){const nm=await ask({title:'Gruppe umbenennen',input:g.name,ok:'Speichern'});if(!nm)return;g.name=nm}
+  else if(act==='del'){
+    if(!await ask({title:`Gruppe „${g.name}“ löschen?`,text:'Die Favoriten wandern nach „Allgemein“.',ok:'Löschen'}))return;
+    S.groups=S.groups.filter(x=>x!==g);for(const id in S.favs)if(S.favs[id].g===g.id)S.favs[id].g='default';S.grp='all';
+  }
+  saveFavs();drawFavs();
+}
 document.addEventListener('click',e=>{
-  const t=e.target.closest('[data-share],[data-mv],[data-g],[data-gact]');if(!t)return;
+  const t=e.target.closest('[data-fav],[data-share],[data-hours],[data-mv],[data-g],[data-gact]');if(!t)return;
   const d=t.dataset;
+  if(d.fav)return toggleFav(d.fav);
   if(d.share)return share(d.share);
+  if(d.hours)return hours(d.hours);
   if(d.mv){
     const v=visFavs(),i=v.indexOf(d.id),j=i+ +d.mv;if(i<0||j<0||j>=v.length)return;
     const a=S.order.indexOf(v[i]),b=S.order.indexOf(v[j]);[S.order[a],S.order[b]]=[S.order[b],S.order[a]];
     saveFavs();return drawFavs();
   }
   if(d.g){S.grp=d.g;return drawFavs()}
-  const g=S.groups.find(x=>x.id===S.grp);
-  if(d.gact==='add'){const nm=(prompt('Name der neuen Gruppe')||'').trim();if(!nm)return;const id='g'+Date.now();S.groups.push({id,name:nm});S.grp=id}
-  else if(d.gact==='ren'){const nm=(prompt('Neuer Name',g.name)||'').trim();if(!nm)return;g.name=nm}
-  else if(d.gact==='del'){
-    if(!confirm(`Gruppe „${g.name}“ löschen? Die Favoriten wandern nach „Allgemein“.`))return;
-    S.groups=S.groups.filter(x=>x!==g);for(const id in S.favs)if(S.favs[id].g===g.id)S.favs[id].g='default';S.grp='all';
-  }
-  saveFavs();drawFavs();
+  if(d.gact)groupAction(d.gact);
 });
 document.addEventListener('change',e=>{const s=e.target.closest('[data-sel]');if(!s)return;S.favs[s.dataset.sel].g=s.value;saveFavs();drawFavs()});
 
@@ -319,19 +658,21 @@ function openView(v){
   map.setView([v.lat,v.lng],v.z,{animate:false});
   clearTimeout(tmr);load();
 }
-function saveView(){
-  const nm=(prompt('Name für diesen Kartenausschnitt')||'').trim();if(!nm)return;
-  const c=map.getCenter();
-  S.views.push({id:'v'+Date.now(),name:nm,lat:c.lat,lng:c.lng,z:map.getZoom()});
+async function saveView(){
+  const c=map.getCenter(),z=map.getZoom();
+  const nm=await ask({title:'Kartenausschnitt speichern',input:'',ok:'Speichern'});if(!nm)return;
+  S.views.push({id:'v'+Date.now(),name:nm,lat:c.lat,lng:c.lng,z});
   LS.set('views',S.views);drawViews();
   msg('Gespeichert. Zum Umbenennen oder Löschen lange drücken.');setTimeout(()=>msg(''),3500);
 }
-function editView(id){
+async function editView(id){
   const v=S.views.find(x=>x.id===id);if(!v)return;
-  const nm=prompt('Neuer Name (leer lassen zum Löschen)',v.name);if(nm===null)return;
-  const s=nm.trim();
-  if(!s){if(confirm(`Ausschnitt „${v.name}“ löschen?`)){S.views=S.views.filter(x=>x!==v);if(LS.get('start','')===id)LS.set('start','')}}
-  else v.name=s;
+  const nm=await ask({title:'Ausschnitt bearbeiten',input:v.name,ok:'Speichern',del:true});
+  if(nm===false){
+    if(!await ask({title:`Ausschnitt „${v.name}“ löschen?`,ok:'Löschen'}))return;
+    S.views=S.views.filter(x=>x!==v);if(LS.get('start','')===id)LS.set('start','');
+  }else if(nm)v.name=nm;
+  else return;
   LS.set('views',S.views);drawViews();
 }
 let lpT,lp=false;
@@ -347,15 +688,16 @@ vb.onclick=e=>{
 };
 
 /* Ortssuche (Nominatim, nur bei Absenden, keine Autovervollständigung) */
+const hideRes=()=>{$('#res').hidden=true};
 function go(x){
-  $('#res').hidden=true;S.pin=[+x.lat,+x.lon];
+  hideRes();S.pin=[+x.lat,+x.lon];
   pinMarker?.remove();
   pinMarker=L.circleMarker(S.pin,{radius:8,color:'#fff',weight:3,fillColor:'#ffb000',fillOpacity:1}).addTo(map);
   show('map');map.setView(S.pin,13,{animate:false});$('#q').blur();
 }
 $('#sf').onsubmit=async e=>{
   e.preventDefault();const q=$('#q').value.trim();if(!q)return;
-  $('#res').hidden=true;
+  hideRes();
   try{
     msg('Suche …');
     const r=await (await fetch('https://nominatim.openstreetmap.org/search?format=jsonv2&countrycodes=de&limit=5&accept-language=de&q='+encodeURIComponent(q))).json();
@@ -368,11 +710,36 @@ $('#sf').onsubmit=async e=>{
   }catch{msg('Suche fehlgeschlagen')}
 };
 $('#res').onclick=e=>{const b=e.target.closest('[data-i]');if(b)go(S.res[b.dataset.i])};
+document.addEventListener('keydown',e=>{if(e.key==='Escape')hideRes()});
+document.addEventListener('pointerdown',e=>{if(!e.target.closest('#res,#sf'))hideRes()});
 
-syncOrder();syncOpen();
+/* Service Worker und Update-Hinweis */
+if('serviceWorker'in navigator&&!window.Android){
+  const had=!!navigator.serviceWorker.controller;
+  navigator.serviceWorker.addEventListener('controllerchange',()=>{if(had)$('#upd').hidden=false});
+  navigator.serviceWorker.register('sw.js').then(r=>document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')r.update().catch(()=>{})})).catch(()=>{});
+}
+$('#reload').onclick=()=>location.reload();
+
+/* Android-App: Zurück-Taste schließt erst Dialoge, Suchergebnisse und Popups, dann geht es zur Karte */
+window.appBack=()=>{
+  const d=[...$$('dialog')].reverse().find(x=>x.open);
+  if(d){d.close('cancel');return true}
+  if(!$('#res').hidden){hideRes();return true}
+  if(document.querySelector('.leaflet-popup')){map.closePopup();return true}
+  if(S.view!=='map'){show('map');return true}
+  return false;
+};
+
+/* Start: zuletzt geladene Preise sofort zeigen, dann aktualisieren */
+const last=LS.get('last',null);
+if(Array.isArray(last?.stations)&&last.q){S.stations=last.stations;lastQ=last.q}
+syncOrder();syncFilter();
 setFuel(S.fuel);
-if('serviceWorker'in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
 drawViews();
+setTraffic(S.traffic);syncGmap();
+const hv=location.hash.slice(1);
+if(hv==='list'||hv==='favs')show(hv);
 if(!S.key)openSettings();
 const sv=S.views.find(v=>v.id===LS.get('start',''));
 if(sv)openView(sv);else locate();

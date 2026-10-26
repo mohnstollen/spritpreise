@@ -1,0 +1,107 @@
+name: Android-APK
+
+on:
+  push:
+    branches: ['**']
+    # Tags v* bauen immer und veröffentlichen die APK als Release (Pfadfilter gelten nicht für Tags)
+    tags: ['v*']
+    paths:
+      - index.html
+      - manifest.webmanifest
+      - icon-*.png
+      - android/**
+      - .github/workflows/android.yml
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Versionsnummer für ein Release, z. B. 1.0.1 (leer = nur bauen)'
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+
+env:
+  # Release-Tag: entweder der gepushte Tag v* oder v<version> aus dem manuellen Start
+  TAG: ${{ github.ref_type == 'tag' && github.ref_name || (inputs.version != '' && format('v{0}', inputs.version) || '') }}
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.14.3'
+
+      - name: Leaflet in die App packen (offline nutzbar)
+        working-directory: android
+        run: |
+          mkdir -p vendor
+          npm pack leaflet@1.9.4 --silent
+          tar xzf leaflet-1.9.4.tgz
+          cp package/dist/leaflet.js package/dist/leaflet.css vendor/
+          rm -rf package leaflet-1.9.4.tgz
+
+      - name: Signaturschlüssel aus Secrets
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          if [ -n "$KEYSTORE_BASE64" ]; then
+            echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.jks"
+            echo "KEYSTORE_FILE=$RUNNER_TEMP/release.jks" >> "$GITHUB_ENV"
+          else
+            echo "::warning::Kein ANDROID_KEYSTORE_BASE64-Secret: APK wird mit wechselndem Debug-Schlüssel signiert."
+          fi
+
+      - name: APK bauen
+        working-directory: android
+        env:
+          VERSION_CODE: ${{ github.run_number }}
+          VERSION_NAME: ${{ env.TAG }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          gradle assembleRelease --no-daemon --stacktrace
+          mv app/build/outputs/apk/release/app-release.apk "app/build/outputs/apk/release/spritpreise-${VERSION_CODE}.apk"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: spritpreise-apk
+          path: android/app/build/outputs/apk/release/spritpreise-*.apk
+          if-no-files-found: error
+
+  release:
+    needs: apk
+    if: needs.apk.result == 'success' && (github.ref_type == 'tag' || inputs.version != '')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: spritpreise-apk
+
+      # Fester Dateiname, damit .../releases/latest/download/spritpreise.apk immer die neueste Version liefert
+      - name: Release veröffentlichen
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mv spritpreise-*.apk spritpreise.apk
+          cat > notes.md <<NOTES
+          Android-App der Spritpreise-PWA.
+
+          **Download:** spritpreise.apk unten unter „Assets“, oder immer die neueste Version:
+          https://github.com/${GITHUB_REPOSITORY}/releases/latest/download/spritpreise.apk
+
+          Zum Installieren am Handy „Unbekannte Apps installieren“ für Browser oder Dateimanager erlauben.
+          Vor einer Neuinstallation Favoriten unter ⚙ → „Daten exportieren“ sichern.
+          NOTES
+          gh release create "$TAG" spritpreise.apk --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "Spritpreise $TAG" --notes-file notes.md
