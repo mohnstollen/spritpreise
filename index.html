@@ -29,7 +29,7 @@ main>section{position:absolute;inset:0}
 #list,#favs{overflow:auto;padding:10px 12px 16px}
 #msg{position:absolute;z-index:1100;top:56px;left:50%;transform:translateX(-50%);background:var(--ink);color:#fff;padding:6px 14px;border-radius:20px;font-size:14px;max-width:90%;text-align:center}
 #msg:empty{display:none}
-#loc{position:absolute;z-index:1000;right:12px;bottom:16px;width:48px;height:48px;border-radius:50%;border:0;background:var(--ink);color:var(--amber);font-size:24px;box-shadow:0 2px 8px #0006}
+#loc{position:absolute;z-index:1000;right:12px;bottom:44px;width:48px;height:48px;border-radius:50%;border:0;background:var(--ink);color:var(--amber);font-size:24px;box-shadow:0 2px 8px #0006}
 nav{display:flex;background:var(--card);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom)}
 nav button{flex:1;background:none;border:0;padding:12px 0;color:var(--mut);font-weight:600;border-top:3px solid transparent}
 nav button.on{color:var(--fg);border-top-color:var(--amber)}
@@ -86,6 +86,11 @@ dialog select{display:block;width:100%;margin-top:6px;padding:10px;border:1px so
 @media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important}}
 .leaflet-container{background:var(--bg)}
 @media(prefers-color-scheme:dark){.leaflet-tile-pane{filter:invert(1) hue-rotate(180deg) brightness(.95) contrast(.9)}}
+.leaflet-traffic-pane{pointer-events:none}
+.fab{position:absolute;z-index:1000;right:12px;bottom:104px;display:flex;flex-direction:column;gap:8px;align-items:flex-end}
+.fab button,.fab a{background:var(--card);color:var(--fg);border:1px solid var(--line);border-radius:18px;padding:7px 14px;font-weight:600;font-size:14px;text-decoration:none;box-shadow:0 1px 4px #0004}
+.fab a{font-size:13px;padding:5px 12px;color:var(--mut)}
+#trf[aria-pressed=true]{background:var(--amber);color:#14181c;border-color:var(--amber)}
 .pin.dot{font-size:0;width:12px;height:12px;padding:0;border-radius:50%;transform:translate(-50%,-50%)}
 .hb{background:none;border:1px solid #3a444c;color:#cfd6da;border-radius:8px;padding:8px 9px;font-weight:600}
 .hb[aria-pressed=true]{background:var(--amber);color:#14181c;border-color:var(--amber)}
@@ -102,7 +107,7 @@ dialog select{display:block;width:100%;margin-top:6px;padding:10px;border:1px so
 .spk svg{display:block;width:100%;height:36px;overflow:visible;touch-action:pan-y}
 .spk path{fill:none;stroke:var(--fg);stroke-width:2;stroke-linejoin:round}
 .spk span{display:block;font-variant-numeric:tabular-nums}
-#upd{position:absolute;z-index:1300;bottom:76px;left:50%;transform:translateX(-50%);display:flex;gap:10px;align-items:center;background:var(--ink);color:#fff;padding:6px 6px 6px 14px;border-radius:20px;font-size:14px;white-space:nowrap;box-shadow:0 2px 8px #0006}
+#upd{position:absolute;z-index:1300;top:100px;left:50%;transform:translateX(-50%);display:flex;gap:10px;align-items:center;background:var(--ink);color:#fff;padding:6px 6px 6px 14px;border-radius:20px;font-size:14px;white-space:nowrap;box-shadow:0 2px 8px #0006}
 #upd button{background:var(--amber);color:#14181c;border:0;border-radius:14px;padding:4px 12px;font-weight:700}
 dialog menu.rv{flex-direction:row-reverse;justify-content:flex-start}
 dialog menu .del{margin-right:auto;color:var(--bad);border-color:var(--bad)}
@@ -140,7 +145,10 @@ dialog h4{margin:14px 0 6px}
   <div id="upd" role="status" hidden>Neue Version verfügbar <button id="reload">Neu laden</button></div>
   <div id="res" hidden></div>
   <div id="views"></div>
-  <section id="map"><button id="loc" aria-label="Mein Standort">◎</button></section>
+  <section id="map">
+    <div class="fab"><a id="gmap" href="https://www.google.com/maps/data=!5m1!1e1" target="_blank" rel="noopener" aria-label="Verkehrslage in Google Maps öffnen">Google Maps ↗</a><button id="trf" aria-pressed="false">Verkehr</button></div>
+    <button id="loc" aria-label="Mein Standort">◎</button>
+  </section>
   <section id="list" hidden>
     <div class="sortbar">Sortieren:
       <button data-s="dist">Entfernung</button><button data-s="price">Preis</button><button data-s="save" id="ssave">Ersparnis</button>
@@ -160,6 +168,10 @@ dialog h4{margin:14px 0 6px}
     <label>Tankerkönig API-Key
       <input id="key" autocomplete="off" spellcheck="false" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx">
     </label>
+    <label style="margin-top:12px">TomTom API-Key (Verkehrslage, optional)
+      <input id="tt" autocomplete="off" spellcheck="false" placeholder="Key von developer.tomtom.com">
+    </label>
+    <p class="mut">Für den Button „Verkehr“ auf der Karte: grün = frei, orange = zähflüssig, rot = Stau. Kostenlos bis 50.000 Kartenkacheln pro Tag.</p>
     <label style="margin-top:12px">Startansicht
       <select id="start"></select>
     </label>
@@ -177,7 +189,7 @@ dialog h4{margin:14px 0 6px}
     <p class="mut">Für den Umwegrechner in der Liste. Leer lassen schaltet ihn ab.</p>
     <div class="row"><button type="button" id="exp">Daten exportieren</button><button type="button" id="impb">Daten importieren</button></div>
     <input type="file" id="imp" accept="application/json,.json" hidden>
-    <p class="mut">Sichert Favoriten, Gruppen, Kartenausschnitte, Preisverlauf und Einstellungen als Datei. Der API-Key wird nicht exportiert.</p>
+    <p class="mut">Sichert Favoriten, Gruppen, Kartenausschnitte, Preisverlauf und Einstellungen als Datei. API-Keys werden nicht exportiert.</p>
     <p class="mut">Den kostenlosen Key gibt es auf creativecommons.tankerkoenig.de. Er wird nur lokal in diesem Browser gespeichert. Preisdaten: Tankerkönig.de (CC BY 4.0).</p>
     <menu class="rv"><button id="save" value="ok">Speichern</button><button value="cancel">Abbrechen</button></menu>
   </form>
@@ -207,7 +219,7 @@ dialog h4{margin:14px 0 6px}
 <script>
 const $=s=>document.querySelector(s), $$=s=>document.querySelectorAll(s);
 const LS={get:(k,d)=>{try{return JSON.parse(localStorage.getItem(k))??d}catch{return d}},set:(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch{}}};
-const S={key:LS.get('key',''),fuel:LS.get('fuel','e5'),sort:LS.get('sort','dist'),favs:LS.get('favs',{}),fp:LS.get('fp',{}),hist:LS.get('hist',{}),wait:0,open:LS.get('open',false),grp:'all',groups:LS.get('groups',[{id:'default',name:'Allgemein'}]),order:[],views:LS.get('views',[]),lit:LS.get('lit',40),cons:LS.get('cons',7),hide:LS.get('hide',[]),noBAB:LS.get('noBAB',false),nav:LS.get('nav',/iP(hone|ad|od)/.test(navigator.userAgent)?'apple':'google'),stations:[],me:null,view:'map'};
+const S={key:LS.get('key',''),fuel:LS.get('fuel','e5'),sort:LS.get('sort','dist'),favs:LS.get('favs',{}),fp:LS.get('fp',{}),hist:LS.get('hist',{}),wait:0,open:LS.get('open',false),grp:'all',groups:LS.get('groups',[{id:'default',name:'Allgemein'}]),order:[],views:LS.get('views',[]),lit:LS.get('lit',40),cons:LS.get('cons',7),hide:LS.get('hide',[]),noBAB:LS.get('noBAB',false),tt:LS.get('tt',''),traffic:LS.get('traffic',false),nav:LS.get('nav',/iP(hone|ad|od)/.test(navigator.userAgent)?'apple':'google'),stations:[],me:null,view:'map'};
 const FN={e5:'E5',e10:'E10',diesel:'Diesel'};
 const API='https://creativecommons.tankerkoenig.de/json/';
 const FRESH=120000;
@@ -245,6 +257,36 @@ const map=L.map('map',{zoomControl:false,attributionControl:true}).setView([51.1
 map.attributionControl.setPrefix(false);
 L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap · Preise: Tankerkönig.de (CC BY 4.0)'}).addTo(map);
 const layer=L.layerGroup().addTo(map);
+
+/* Verkehrslage: TomTom-Flusskacheln in eigener Ebene (nicht vom Dark-Mode-Filter der Karte invertiert).
+   Der Zeitstempel im URL erzwingt alle 5 Minuten frische Kacheln. */
+const DARK=matchMedia('(prefers-color-scheme: dark)');
+map.createPane('traffic').style.zIndex=250;
+let traffic=null,trafficT=0,trafficErr=false;
+const trafficUrl=()=>`https://api.tomtom.com/traffic/map/4/tile/flow/${DARK.matches?'relative0-dark':'relative0'}/{z}/{x}/{y}.png?key=${encodeURIComponent(S.tt)}&tileSize=256&t=${trafficT}`;
+function setTraffic(on){
+  S.traffic=on;LS.set('traffic',on);$('#trf').setAttribute('aria-pressed',on&&!!S.tt);
+  traffic?.remove();traffic=null;trafficErr=false;
+  if(!on||!S.tt)return;
+  trafficT=Math.floor(Date.now()/3e5);
+  traffic=L.tileLayer(trafficUrl(),{pane:'traffic',maxZoom:19,attribution:'Verkehr © TomTom'})
+    .on('tileerror',()=>{if(!trafficErr&&navigator.onLine){trafficErr=true;msg('Verkehrslage nicht verfügbar. TomTom-Key prüfen.');setTimeout(()=>msg(''),4000)}})
+    .addTo(map);
+}
+function refreshTraffic(){
+  const t=Math.floor(Date.now()/3e5);
+  if(traffic&&t!==trafficT&&document.visibilityState==='visible'){trafficT=t;traffic.setUrl(trafficUrl())}
+}
+setInterval(refreshTraffic,60000);
+DARK.addEventListener?.('change',()=>traffic?.setUrl(trafficUrl()));
+$('#trf').onclick=async()=>{
+  if(S.tt)return setTraffic(!S.traffic);
+  if(await ask({title:'TomTom-Key fehlt',text:'Für die Verkehrslage brauchst du einen kostenlosen API-Key von developer.tomtom.com. Trag ihn danach in den Einstellungen ein.',ok:'Zu den Einstellungen'}))openSettings();
+};
+/* Zusatz: aktuellen Ausschnitt mit Verkehrsebene in Google Maps öffnen */
+function syncGmap(){const c=map.getCenter();$('#gmap').href=`https://www.google.com/maps/@${c.lat.toFixed(5)},${c.lng.toFixed(5)},${map.getZoom()}z/data=!5m1!1e1`}
+map.on('moveend',syncGmap);
+L.DomEvent.disableClickPropagation($('.fab'));
 let meMarker,pinMarker,tmr,lastQ=null,reqN=0,marks=[];
 const ref=()=>S.pin||S.me||[map.getCenter().lat,map.getCenter().lng];
 
@@ -484,6 +526,7 @@ function setFuel(f){
 function openSettings(){
   const d=$('#dlg');if(d.open)return;
   $('#key').value=S.key;
+  $('#tt').value=S.tt;
   $('#lit').value=S.lit?String(S.lit).replace('.',','):'';
   $('#cons').value=S.cons?String(S.cons).replace('.',','):'';
   $('#navapp').value=S.nav;
@@ -514,7 +557,7 @@ $('#flt').addEventListener('close',e=>{
 });
 
 /* Daten sichern und wiederherstellen */
-const KEYS=['favs','order','groups','views','start','lit','cons','fuel','sort','open','hide','noBAB','nav','hist'];
+const KEYS=['favs','order','groups','views','start','lit','cons','fuel','sort','open','hide','noBAB','nav','hist','traffic'];
 async function exportData(){
   const data={app:'spritpreise',version:1,exported:new Date().toISOString()};
   KEYS.forEach(k=>{const v=LS.get(k,null);if(v!=null)data[k]=v});
@@ -547,6 +590,7 @@ $('#dlg').addEventListener('close',e=>{
   S.key=$('#key').value.trim();LS.set('key',S.key);LS.set('start',$('#start').value);
   S.lit=num($('#lit').value);S.cons=num($('#cons').value);LS.set('lit',S.lit);LS.set('cons',S.cons);
   S.nav=$('#navapp').value;LS.set('nav',S.nav);
+  const tt=$('#tt').value.trim();if(tt!==S.tt){S.tt=tt;LS.set('tt',tt);setTraffic(S.traffic||!!tt)}
   msg('');redraw();load(true);
 });
 /* Nach Rückkehr in die App veraltete Preise nachladen */
@@ -693,6 +737,7 @@ if(Array.isArray(last?.stations)&&last.q){S.stations=last.stations;lastQ=last.q}
 syncOrder();syncFilter();
 setFuel(S.fuel);
 drawViews();
+setTraffic(S.traffic);syncGmap();
 const hv=location.hash.slice(1);
 if(hv==='list'||hv==='favs')show(hv);
 if(!S.key)openSettings();
