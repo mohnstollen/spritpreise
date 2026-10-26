@@ -1,0 +1,3 @@
+# Signaturschlüssel nie einchecken
+*.jks
+*.jks.b64

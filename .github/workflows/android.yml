@@ -66,11 +66,20 @@ jobs:
           VERSION_CODE: ${{ github.run_number }}
           VERSION_NAME: ${{ env.TAG }}
           KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
-          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          # Alias und Schlüssel-Passwort sind optional (Standard aus android/make-keystore.sh)
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS || 'spritpreise' }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD || secrets.ANDROID_KEYSTORE_PASSWORD }}
         run: |
           gradle assembleRelease --no-daemon --stacktrace
           mv app/build/outputs/apk/release/app-release.apk "app/build/outputs/apk/release/spritpreise-${VERSION_CODE}.apk"
+
+      # Zertifikat ausgeben: Bei festem Schlüssel muss der SHA-256-Wert in jedem Build gleich sein
+      - name: Signatur anzeigen
+        working-directory: android
+        run: |
+          BT=$(ls "$ANDROID_HOME/build-tools" | sort -V | tail -1)
+          "$ANDROID_HOME/build-tools/$BT/apksigner" verify --print-certs app/build/outputs/apk/release/spritpreise-*.apk \
+            | grep -E "DN|SHA-256" | tee -a "$GITHUB_STEP_SUMMARY" || echo "::warning::Signatur konnte nicht angezeigt werden"
 
       - uses: actions/upload-artifact@v4
         with:
