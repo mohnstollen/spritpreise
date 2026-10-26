@@ -87,6 +87,9 @@ dialog select{display:block;width:100%;margin-top:6px;padding:10px;border:1px so
 .leaflet-container{background:var(--bg)}
 @media(prefers-color-scheme:dark){.leaflet-tile-pane{filter:invert(1) hue-rotate(180deg) brightness(.95) contrast(.9)}}
 .leaflet-traffic-pane{pointer-events:none}
+/* Bei eingeblendetem Verkehr wird die Grundkarte grau, damit Grün/Orange/Rot nur noch Verkehr bedeuten */
+#map.trf .leaflet-tile-pane{filter:grayscale(1) brightness(1.05) contrast(.8)}
+@media(prefers-color-scheme:dark){#map.trf .leaflet-tile-pane{filter:invert(1) grayscale(1) brightness(.75) contrast(.9)}}
 .fab{position:absolute;z-index:1000;right:12px;bottom:104px;display:flex;flex-direction:column;gap:8px;align-items:flex-end}
 .fab button,.fab a{background:var(--card);color:var(--fg);border:1px solid var(--line);border-radius:18px;padding:7px 14px;font-weight:600;font-size:14px;text-decoration:none;box-shadow:0 1px 4px #0004}
 .fab a{font-size:13px;padding:5px 12px;color:var(--mut)}
@@ -171,6 +174,12 @@ dialog h4{margin:14px 0 6px}
     <label style="margin-top:12px">TomTom API-Key (Verkehrslage, optional)
       <input id="tt" autocomplete="off" spellcheck="false" placeholder="Key von developer.tomtom.com">
     </label>
+    <label style="margin-top:12px">Verkehrsanzeige
+      <select id="tstyle">
+        <option value="all">Alle Straßen (grün bis rot)</option>
+        <option value="jam">Nur Staus und stockender Verkehr</option>
+      </select>
+    </label>
     <p class="mut">Für den Button „Verkehr“ auf der Karte: grün = frei, orange = zähflüssig, rot = Stau. Kostenlos bis 50.000 Kartenkacheln pro Tag.</p>
     <label style="margin-top:12px">Startansicht
       <select id="start"></select>
@@ -219,7 +228,7 @@ dialog h4{margin:14px 0 6px}
 <script>
 const $=s=>document.querySelector(s), $$=s=>document.querySelectorAll(s);
 const LS={get:(k,d)=>{try{return JSON.parse(localStorage.getItem(k))??d}catch{return d}},set:(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch{}}};
-const S={key:LS.get('key',''),fuel:LS.get('fuel','e5'),sort:LS.get('sort','dist'),favs:LS.get('favs',{}),fp:LS.get('fp',{}),hist:LS.get('hist',{}),wait:0,open:LS.get('open',false),grp:'all',groups:LS.get('groups',[{id:'default',name:'Allgemein'}]),order:[],views:LS.get('views',[]),lit:LS.get('lit',40),cons:LS.get('cons',7),hide:LS.get('hide',[]),noBAB:LS.get('noBAB',false),tt:LS.get('tt',''),traffic:LS.get('traffic',false),nav:LS.get('nav',/iP(hone|ad|od)/.test(navigator.userAgent)?'apple':'google'),stations:[],me:null,view:'map'};
+const S={key:LS.get('key',''),fuel:LS.get('fuel','e5'),sort:LS.get('sort','dist'),favs:LS.get('favs',{}),fp:LS.get('fp',{}),hist:LS.get('hist',{}),wait:0,open:LS.get('open',false),grp:'all',groups:LS.get('groups',[{id:'default',name:'Allgemein'}]),order:[],views:LS.get('views',[]),lit:LS.get('lit',40),cons:LS.get('cons',7),hide:LS.get('hide',[]),noBAB:LS.get('noBAB',false),tt:LS.get('tt',''),traffic:LS.get('traffic',false),tstyle:LS.get('tstyle','all'),nav:LS.get('nav',/iP(hone|ad|od)/.test(navigator.userAgent)?'apple':'google'),stations:[],me:null,view:'map'};
 const FN={e5:'E5',e10:'E10',diesel:'Diesel'};
 const API='https://creativecommons.tankerkoenig.de/json/';
 const FRESH=120000;
@@ -263,10 +272,13 @@ const layer=L.layerGroup().addTo(map);
 const DARK=matchMedia('(prefers-color-scheme: dark)');
 map.createPane('traffic').style.zIndex=250;
 let traffic=null,trafficT=0,trafficErr=false;
-const trafficUrl=()=>`https://api.tomtom.com/traffic/map/4/tile/flow/${DARK.matches?'relative0-dark':'relative0'}/{z}/{x}/{y}.png?key=${encodeURIComponent(S.tt)}&tileSize=256&t=${trafficT}`;
+// „Nur Staus“: relative-delay färbt nur Abschnitte, auf denen es langsamer als normal geht
+const trafficStyle=()=>S.tstyle==='jam'?'relative-delay':DARK.matches?'relative0-dark':'relative0';
+const trafficUrl=()=>`https://api.tomtom.com/traffic/map/4/tile/flow/${trafficStyle()}/{z}/{x}/{y}.png?key=${encodeURIComponent(S.tt)}&tileSize=256&thickness=14&t=${trafficT}`;
 function setTraffic(on){
   S.traffic=on;LS.set('traffic',on);$('#trf').setAttribute('aria-pressed',on&&!!S.tt);
   traffic?.remove();traffic=null;trafficErr=false;
+  $('#map').classList.toggle('trf',on&&!!S.tt);
   if(!on||!S.tt)return;
   trafficT=Math.floor(Date.now()/3e5);
   traffic=L.tileLayer(trafficUrl(),{pane:'traffic',maxZoom:19,attribution:'Verkehr © TomTom'})
@@ -527,6 +539,7 @@ function openSettings(){
   const d=$('#dlg');if(d.open)return;
   $('#key').value=S.key;
   $('#tt').value=S.tt;
+  $('#tstyle').value=S.tstyle;
   $('#lit').value=S.lit?String(S.lit).replace('.',','):'';
   $('#cons').value=S.cons?String(S.cons).replace('.',','):'';
   $('#navapp').value=S.nav;
@@ -557,7 +570,7 @@ $('#flt').addEventListener('close',e=>{
 });
 
 /* Daten sichern und wiederherstellen */
-const KEYS=['favs','order','groups','views','start','lit','cons','fuel','sort','open','hide','noBAB','nav','hist','traffic'];
+const KEYS=['favs','order','groups','views','start','lit','cons','fuel','sort','open','hide','noBAB','nav','hist','traffic','tstyle'];
 async function exportData(){
   const data={app:'spritpreise',version:1,exported:new Date().toISOString()};
   KEYS.forEach(k=>{const v=LS.get(k,null);if(v!=null)data[k]=v});
@@ -590,7 +603,9 @@ $('#dlg').addEventListener('close',e=>{
   S.key=$('#key').value.trim();LS.set('key',S.key);LS.set('start',$('#start').value);
   S.lit=num($('#lit').value);S.cons=num($('#cons').value);LS.set('lit',S.lit);LS.set('cons',S.cons);
   S.nav=$('#navapp').value;LS.set('nav',S.nav);
-  const tt=$('#tt').value.trim();if(tt!==S.tt){S.tt=tt;LS.set('tt',tt);setTraffic(S.traffic||!!tt)}
+  const tt=$('#tt').value.trim(),ts=$('#tstyle').value;
+  if(ts!==S.tstyle){S.tstyle=ts;LS.set('tstyle',ts);if(tt===S.tt)setTraffic(S.traffic)}
+  if(tt!==S.tt){S.tt=tt;LS.set('tt',tt);setTraffic(S.traffic||!!tt)}
   msg('');redraw();load(true);
 });
 /* Nach Rückkehr in die App veraltete Preise nachladen */
