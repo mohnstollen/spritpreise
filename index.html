@@ -192,6 +192,7 @@ dialog h4{margin:14px 0 6px}
         <select id="rc" aria-label="Abstand zur Strecke"><option value="1">max. 1 km Abstand</option><option value="2">max. 2 km Abstand</option><option value="5">max. 5 km Abstand</option></select>
         <button id="rgo">Route berechnen</button>
       </div>
+      <input id="rr" inputmode="numeric" autocomplete="off" placeholder="Restreichweite in km (optional)" aria-label="Restreichweite in km">
     </form>
     <p id="rstat" class="mut" role="status"></p>
     <div id="rsum"></div>
@@ -676,12 +677,23 @@ async function geocode(q){
   return{lat:+r[0].lat,lng:+r[0].lon};
 }
 async function tomtomRoute(a,b){
-  const r=await fetch(`https://api.tomtom.com/routing/1/calculateRoute/${a.lat},${a.lng}:${b.lat},${b.lng}/json?key=${encodeURIComponent(S.tt)}&travelMode=car&traffic=true`);
+  const r=await fetch(`https://api.tomtom.com/routing/1/calculateRoute/${a.lat},${a.lng}:${b.lat},${b.lng}/json?key=${encodeURIComponent(S.tt)}&travelMode=car&traffic=true&instructionsType=coded`);
   const j=await r.json().catch(()=>({}));
   if(!r.ok)throw new Error(`TomTom antwortet mit HTTP ${r.status}${(t=>t?': '+t:'')(j.detailedError?.message||j.error?.description||'')}`);
   const rt=j.routes?.[0];if(!rt)throw new Error('Keine Route gefunden');
-  return{pts:rt.legs.flatMap(l=>l.points.map(p=>[p.latitude,p.longitude])),km:rt.summary.lengthInMeters/1000,sec:rt.summary.travelTimeInSeconds};
+  const km=rt.summary.lengthInMeters/1000,sec=rt.summary.travelTimeInSeconds;
+  // Zeitprofil: je Fahranweisung Strecke ab Start (km) und bisherige Fahrzeit (s), inkl. Verkehr
+  const prof=[[0,0],...(rt.guidance?.instructions||[]).map(i=>[i.routeOffsetInMeters/1000,i.travelTimeInSeconds]).filter(([d,t])=>d>0&&d<km&&t>=0),[km,sec]]
+    .sort((x,y)=>x[0]-y[0]).filter((x,i,a)=>!i||x[1]>=a[i-1][1]);
+  return{pts:rt.legs.flatMap(l=>l.points.map(p=>[p.latitude,p.longitude])),km,sec,prof};
 }
+// Fahrzeit bis km d der Route; ohne Fahranweisungen anteilig aus der Gesamtzeit
+function timeAt(d){
+  const p=route.prof;let i=1;while(i<p.length-1&&p[i][0]<d)i++;
+  const [d0,t0]=p[i-1],[d1,t1]=p[i];
+  return t0+(d1>d0?Math.min(1,Math.max(0,(d-d0)/(d1-d0))):0)*(t1-t0);
+}
+const dur=s=>{const m=Math.round(s/60);return m<60?`${m} min`:`${Math.floor(m/60)} h ${String(m%60).padStart(2,'0')} min`};
 async function calcRoute(){
   const st=t=>{$('#rstat').textContent=t};
   if(!S.key)return st('Kein Tankerkönig-Key. Bitte unter ⚙ eintragen.');
@@ -695,7 +707,7 @@ async function calcRoute(){
     const a=await geocode(start),b=await geocode(dest);
     st('Berechne Route …');
     const rt=await tomtomRoute(a,b);
-    rt.pts=thin(rt.pts);rt.cum=along(rt.pts);
+    rt.pts=thin(rt.pts);rt.cum=along(rt.pts);rt.scale=rt.km/(rt.cum[rt.cum.length-1]||1);
     const cnt=Math.ceil(rt.km/40)+1;
     if(cnt>26)throw new Error('Die Route ist länger als 1.000 km. Bitte in Etappen planen.');
     const all=new Map();
@@ -714,13 +726,16 @@ async function calcRoute(){
   }catch(e){st(e instanceof TypeError?'Keine Verbindung. Bitte später erneut versuchen.':e.message)}
   finally{$('#rgo').disabled=false}
 }
-// Sortierung nach Kosten inkl. Umweg (mit Umwegrechner) oder Preis; berücksichtigt Sorte und Filter
+// Sortierung nach Kosten inkl. Umweg (mit Umwegrechner) oder Preis; berücksichtigt Sorte, Filter und Restreichweite.
+// Umweg in Minuten grob mit 40 km/h; erreichbar ist, was bis Tankstelle (Strecke + Abstand) in der Reichweite liegt.
 function rankRoute(){
-  const calc=calcOn();
-  return route.cands.filter(o=>vis(o.s)&&n(o.s[S.fuel])!=null).map(o=>{
-    const p=n(o.s[S.fuel]),det=2*1.3*o.off;
-    return{...o,p,det,c:calc?p*(S.lit+det*S.cons/100):p};
-  }).sort((x,y)=>x.c-y.c||x.at-y.at);
+  const calc=calcOn(),rng=num($('#rr').value);let out=0;
+  const r=route.cands.filter(o=>vis(o.s)&&n(o.s[S.fuel])!=null).map(o=>{
+    const p=n(o.s[S.fuel]),det=2*1.3*o.off,at=o.at*route.scale;
+    return{...o,at,p,det,sec:timeAt(at),dmin:Math.round(det*1.5),c:calc?p*(S.lit+det*S.cons/100):p};
+  }).filter(o=>!rng||o.at+1.3*o.off<=rng||!++out).sort((x,y)=>x.c-y.c||x.at-y.at);
+  r.out=out;r.rng=rng;
+  return r;
 }
 function renderRoute(){
   routeLayer.clearLayers();
@@ -731,15 +746,16 @@ function renderRoute(){
   for(const [p,c] of [[[route.a.lat,route.a.lng],'#2f7bf5'],[[route.b.lat,route.b.lng],'#d64545']])L.circleMarker(p,{radius:8,color:'#fff',weight:3,fillColor:c,fillOpacity:1}).addTo(routeLayer);
   top.forEach((o,i)=>L.marker([o.s.lat,o.s.lng],{zIndexOffset:2000-i,icon:L.divIcon({className:'',iconSize:[0,0],html:`<div class="pin g">${i+1}. ${fmt(o.p)}</div>`})}).bindPopup(card(o.s,prOf(o.s),null),{minWidth:250}).addTo(routeLayer));
   route.bounds=line.getBounds();
-  const h=Math.floor(route.sec/3600),m=Math.round(route.sec%3600/60);
-  $('#rsum').innerHTML=`<div class="sum">${km(route.km)} · ${h} h ${String(m).padStart(2,'0')} min · ${ranked.length} ${ranked.length===1?'Tankstelle':'Tankstellen'} mit ${FN[S.fuel]} bis ${route.corr} km neben der Strecke${top[0]?` · günstigste <b>${fmt(top[0].p)} €</b>`:''}</div><div class="row"><button data-rmap>Auf Karte zeigen</button><button class="sec" data-rclear>Route löschen</button></div>`;
+  const rngInfo=ranked.rng?`<div class="sv ${ranked.rng<route.km?'r':'mut'}">${ranked.rng<route.km?`Deine Reichweite endet bei km ${Math.round(ranked.rng)}, das Ziel liegt dahinter: unterwegs tanken.`:'Das Ziel liegt innerhalb deiner Reichweite.'}${ranked.out?` ${ranked.out} ${ranked.out===1?'Tankstelle':'Tankstellen'} dahinter ausgeblendet.`:''}</div>`:'';
+  $('#rsum').innerHTML=`<div class="sum">${km(route.km)} · ${dur(route.sec)} · ${ranked.length} ${ranked.length===1?'Tankstelle':'Tankstellen'} mit ${FN[S.fuel]} bis ${route.corr} km neben der Strecke${top[0]?` · günstigste <b>${fmt(top[0].p)} €</b>`:''}<div class="mut">Preise von ${hhmm(route.t)} Uhr, Ankunftszeiten bei Abfahrt um ${hhmm(route.t)} Uhr</div>${rngInfo}</div><div class="row"><button data-rmap>Auf Karte zeigen</button><button class="sec" data-rclear>Route löschen</button></div>`;
   $('#ritems').innerHTML=top.map((o,i)=>{
     const sv=calc&&ranked.length>1?Math.abs(avg-o.c)<0.005?'':`<div class="sv ${avg>o.c?'g':'r'}">${eur(avg-o.c)} ${avg>o.c?'günstiger':'teurer'} als der Durchschnitt auf der Strecke, inkl. Umweg</div>`:'';
-    return card(o.s,prOf(o.s),null,`<div class="sv mut">${i+1}. bei km ${Math.round(o.at)} · ${km(o.off)} neben der Strecke · Umweg ca. ${km(o.det)}</div>${sv}`);
-  }).join('')||'<p class="empty">Keine passende Tankstelle entlang der Strecke. Größeren Abstand wählen oder Filter prüfen.</p>';
+    return card(o.s,prOf(o.s),null,`<div class="sv">${i+1}. bei km ${Math.round(o.at)} · ca. ${dur(o.sec)} · Ankunft ca. ${hhmm(route.t+o.sec*1000)} Uhr</div><div class="sv mut">${km(o.off)} neben der Strecke · Umweg ca. ${km(o.det)} (+${o.dmin} min)</div>${sv}`);
+  }).join('')||`<p class="empty">${ranked.out?'Keine passende Tankstelle innerhalb deiner Reichweite.':'Keine passende Tankstelle entlang der Strecke.'} Größeren Abstand wählen oder Filter prüfen.</p>`;
 }
 $('#rf').onsubmit=e=>{e.preventDefault();calcRoute()};
 $('#rs').value=LS.get('rStart','');$('#rd').value=LS.get('rDest','');$('#rc').value=String(LS.get('rCorr',2));
+$('#rr').addEventListener('input',()=>{if(route)renderRoute()});
 $('#rswap').onclick=()=>{const a=$('#rs').value;$('#rs').value=$('#rd').value;$('#rd').value=a};
 
 /* Gemerkte Routen („Strecke zu Oma“): Antippen rechnet sofort, lange drücken zum Umbenennen oder Löschen */
