@@ -61,6 +61,14 @@ dialog menu{display:flex;justify-content:flex-end;gap:8px;padding:0;margin:14px 
 dialog menu button{border:1px solid var(--line);background:none;border-radius:8px;padding:8px 14px}
 dialog menu #save{background:var(--ink);color:var(--amber);border-color:var(--ink);font-weight:600}
 #sf{flex:1 1 100%;order:3;display:flex;gap:8px;min-width:0}
+#route{overflow:auto;padding:10px 12px 16px}
+.rform{display:flex;flex-direction:column;gap:8px;margin-bottom:8px}
+.rform input,.rform select{padding:10px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--fg);min-width:0}
+.rrow{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.rrow select{flex:1}
+.rrow button,#rsum button{border:0;border-radius:8px;padding:10px 14px;font-weight:700;background:var(--ink);color:var(--amber)}
+#rsum button.sec{background:none;border:1px solid var(--line);color:var(--fg);font-weight:600}
+#rsum .row{margin:8px 0}
 #sf input{flex:1;min-width:0;padding:9px 12px;border:1px solid #3a444c;border-radius:8px;background:#222a31;color:#fff}
 #sf button{background:var(--amber);color:#14181c;border:0;border-radius:8px;padding:0 14px;font-weight:700}
 #res{position:absolute;z-index:1200;top:8px;left:12px;right:12px;background:var(--card);border:1px solid var(--line);border-radius:10px;box-shadow:0 4px 16px #0006;overflow:hidden}
@@ -166,9 +174,22 @@ dialog h4{margin:14px 0 6px}
     <div id="items"></div>
   </section>
   <section id="favs" hidden></section>
+  <section id="route" hidden>
+    <form id="rf" class="rform">
+      <input id="rs" placeholder="Start (leer = mein Standort)" autocomplete="off" aria-label="Start">
+      <input id="rd" placeholder="Ziel, z. B. München Hbf" autocomplete="off" aria-label="Ziel">
+      <div class="rrow">
+        <select id="rc" aria-label="Abstand zur Strecke"><option value="1">max. 1 km Abstand</option><option value="2">max. 2 km Abstand</option><option value="5">max. 5 km Abstand</option></select>
+        <button id="rgo">Route berechnen</button>
+      </div>
+    </form>
+    <p id="rstat" class="mut" role="status"></p>
+    <div id="rsum"></div>
+    <div id="ritems"></div>
+  </section>
 </main>
 <nav>
-  <button data-v="map" class="on">Karte</button><button data-v="list">Liste</button><button data-v="favs">Favoriten</button>
+  <button data-v="map" class="on">Karte</button><button data-v="list">Liste</button><button data-v="favs">Favoriten</button><button data-v="route">Route</button>
 </nav>
 <dialog id="dlg">
   <form method="dialog">
@@ -599,7 +620,7 @@ $('#favs').addEventListener('pointerout',e=>{const s=e.target.closest?.('[data-s
 /* Öffnungszeiten auf Abruf (eine Anfrage je Station, im Speicher zwischengespeichert) */
 const hrsC={};
 async function hours(id){
-  const s=S.stations.find(x=>x.id===id)||S.favs[id],nm=s?.brand||s?.name||'Tankstelle';
+  const s=stById(id)||S.favs[id],nm=s?.brand||s?.name||'Tankstelle';
   if(!S.key)return keyMissing();
   try{
     if(!hrsC[id]){
@@ -616,16 +637,115 @@ async function hours(id){
   }catch(e){msg('Öffnungszeiten nicht verfügbar: '+(e.message||'Netzwerk'));setTimeout(()=>msg(''),3000)}
 }
 
+/* Günstig tanken auf der Strecke: Route von TomTom, Tankstellen von Tankerkönig alle 40 km im 25-km-Umkreis,
+   davon nur die bis zum gewählten Abstand neben der Strecke. Umweg wie beim Umwegrechner: 2 × Abstand × 1,3. */
+const routeLayer=L.layerGroup().addTo(map);
+let route=null;
+const stById=id=>S.stations.find(x=>x.id===id)||route?.all.get(id);
+function thin(pts){const r=[pts[0]];for(const p of pts)if(dist(r[r.length-1],p)>=0.2)r.push(p);r.push(pts[pts.length-1]);return r}
+function along(pts){const c=[0];for(let i=1;i<pts.length;i++)c.push(c[i-1]+dist(pts[i-1],pts[i]));return c}
+function pointAt(rt,d){
+  const{pts,cum}=rt;let i=1;while(i<pts.length-1&&cum[i]<d)i++;
+  const t=cum[i]>cum[i-1]?Math.min(1,Math.max(0,(d-cum[i-1])/(cum[i]-cum[i-1]))):0;
+  return [pts[i-1][0]+t*(pts[i][0]-pts[i-1][0]),pts[i-1][1]+t*(pts[i][1]-pts[i-1][1])];
+}
+// Abstand eines Punkts zur Route (km) und Position entlang der Route (km ab Start), lokal flach gerechnet
+function project(rt,p){
+  const{pts,cum}=rt,kx=111.32*Math.cos(p[0]*Math.PI/180),ky=110.57;let best={d:1e9,km:0};
+  for(let i=1;i<pts.length;i++){
+    const ax=(pts[i-1][1]-p[1])*kx,ay=(pts[i-1][0]-p[0])*ky,dx=(pts[i][1]-pts[i-1][1])*kx,dy=(pts[i][0]-pts[i-1][0])*ky,l2=dx*dx+dy*dy;
+    const t=l2?Math.min(1,Math.max(0,-(ax*dx+ay*dy)/l2)):0,d=Math.hypot(ax+t*dx,ay+t*dy);
+    if(d<best.d)best={d,km:cum[i-1]+t*(cum[i]-cum[i-1])};
+  }
+  return best;
+}
+async function geocode(q){
+  if(!q){if(S.me)return{lat:S.me[0],lng:S.me[1]};throw new Error('Standort unbekannt. Bitte einen Start eingeben oder den Standort freigeben.')}
+  const r=await (await fetch('https://nominatim.openstreetmap.org/search?format=jsonv2&countrycodes=de&limit=1&accept-language=de&q='+encodeURIComponent(q))).json();
+  if(!r.length)throw new Error(`„${q}“ nicht gefunden`);
+  return{lat:+r[0].lat,lng:+r[0].lon};
+}
+async function tomtomRoute(a,b){
+  const r=await fetch(`https://api.tomtom.com/routing/1/calculateRoute/${a.lat},${a.lng}:${b.lat},${b.lng}/json?key=${encodeURIComponent(S.tt)}&travelMode=car&traffic=true`);
+  const j=await r.json().catch(()=>({}));
+  if(!r.ok)throw new Error(`TomTom antwortet mit HTTP ${r.status}${(t=>t?': '+t:'')(j.detailedError?.message||j.error?.description||'')}`);
+  const rt=j.routes?.[0];if(!rt)throw new Error('Keine Route gefunden');
+  return{pts:rt.legs.flatMap(l=>l.points.map(p=>[p.latitude,p.longitude])),km:rt.summary.lengthInMeters/1000,sec:rt.summary.travelTimeInSeconds};
+}
+async function calcRoute(){
+  const st=t=>{$('#rstat').textContent=t};
+  if(!S.key)return st('Kein Tankerkönig-Key. Bitte unter ⚙ eintragen.');
+  if(!S.tt)return needTomTom('die Routenplanung');
+  const start=$('#rs').value.trim(),dest=$('#rd').value.trim(),corr=+$('#rc').value;
+  LS.set('rStart',start);LS.set('rDest',dest);LS.set('rCorr',corr);
+  if(!dest)return st('Bitte ein Ziel eingeben.');
+  $('#rgo').disabled=true;
+  try{
+    st('Suche Start und Ziel …');
+    const a=await geocode(start),b=await geocode(dest);
+    st('Berechne Route …');
+    const rt=await tomtomRoute(a,b);
+    rt.pts=thin(rt.pts);rt.cum=along(rt.pts);
+    const cnt=Math.ceil(rt.km/40)+1;
+    if(cnt>26)throw new Error('Die Route ist länger als 1.000 km. Bitte in Etappen planen.');
+    const all=new Map();
+    for(let i=0;i<cnt;i++){
+      st(`Lade Tankstellen entlang der Route … ${i+1} von ${cnt}`);
+      const c=pointAt(rt,Math.min(i*40,rt.km));
+      const r=await (await fetch(`${API}list.php?lat=${c[0]}&lng=${c[1]}&rad=25&sort=dist&type=all&apikey=${encodeURIComponent(S.key)}`)).json();
+      if(!r.ok)throw new Error(r.message||'Tankerkönig-Fehler');
+      for(const x of r.stations||[])all.set(x.id,x);
+      if(i<cnt-1)await new Promise(res=>setTimeout(res,300));
+    }
+    const cands=[];
+    for(const x of all.values()){const pr=project(rt,[x.lat,x.lng]);if(pr.d<=corr)cands.push({s:x,off:pr.d,at:pr.km})}
+    route={...rt,a,b,all,cands,corr,t:Date.now()};
+    st('');renderRoute();
+  }catch(e){st(e instanceof TypeError?'Keine Verbindung. Bitte später erneut versuchen.':e.message)}
+  finally{$('#rgo').disabled=false}
+}
+// Sortierung nach Kosten inkl. Umweg (mit Umwegrechner) oder Preis; berücksichtigt Sorte und Filter
+function rankRoute(){
+  const calc=calcOn();
+  return route.cands.filter(o=>vis(o.s)&&n(o.s[S.fuel])!=null).map(o=>{
+    const p=n(o.s[S.fuel]),det=2*1.3*o.off;
+    return{...o,p,det,c:calc?p*(S.lit+det*S.cons/100):p};
+  }).sort((x,y)=>x.c-y.c||x.at-y.at);
+}
+function renderRoute(){
+  routeLayer.clearLayers();
+  if(!route){$('#rsum').innerHTML='';$('#ritems').innerHTML='';return}
+  const ranked=rankRoute(),top=ranked.slice(0,10),calc=calcOn();
+  const avg=ranked.length?ranked.reduce((t,o)=>t+o.c,0)/ranked.length:0;
+  const line=L.polyline(route.pts,{color:'#2f7bf5',weight:5,opacity:.8}).addTo(routeLayer);
+  for(const [p,c] of [[[route.a.lat,route.a.lng],'#2f7bf5'],[[route.b.lat,route.b.lng],'#d64545']])L.circleMarker(p,{radius:8,color:'#fff',weight:3,fillColor:c,fillOpacity:1}).addTo(routeLayer);
+  top.forEach((o,i)=>L.marker([o.s.lat,o.s.lng],{zIndexOffset:2000-i,icon:L.divIcon({className:'',iconSize:[0,0],html:`<div class="pin g">${i+1}. ${fmt(o.p)}</div>`})}).bindPopup(card(o.s,prOf(o.s),null),{minWidth:250}).addTo(routeLayer));
+  route.bounds=line.getBounds();
+  const h=Math.floor(route.sec/3600),m=Math.round(route.sec%3600/60);
+  $('#rsum').innerHTML=`<div class="sum">${km(route.km)} · ${h} h ${String(m).padStart(2,'0')} min · ${ranked.length} Tankstellen mit ${FN[S.fuel]} bis ${route.corr} km neben der Strecke${top[0]?` · günstigste <b>${fmt(top[0].p)} €</b>`:''}</div><div class="row"><button data-rmap>Auf Karte zeigen</button><button class="sec" data-rclear>Route löschen</button></div>`;
+  $('#ritems').innerHTML=top.map((o,i)=>{
+    const sv=calc&&ranked.length>1?Math.abs(avg-o.c)<0.005?'':`<div class="sv ${avg>o.c?'g':'r'}">${eur(avg-o.c)} ${avg>o.c?'günstiger':'teurer'} als der Durchschnitt auf der Strecke, inkl. Umweg</div>`:'';
+    return card(o.s,prOf(o.s),null,`<div class="sv mut">${i+1}. bei km ${Math.round(o.at)} · ${km(o.off)} neben der Strecke · Umweg ca. ${km(o.det)}</div>${sv}`);
+  }).join('')||'<p class="empty">Keine passende Tankstelle entlang der Strecke. Größeren Abstand wählen oder Filter prüfen.</p>';
+}
+$('#rf').onsubmit=e=>{e.preventDefault();calcRoute()};
+$('#rs').value=LS.get('rStart','');$('#rd').value=LS.get('rDest','');$('#rc').value=String(LS.get('rCorr',2));
+$('#rsum').addEventListener('click',e=>{
+  if(e.target.closest('[data-rmap]')){show('map');map.fitBounds(route.bounds,{padding:[30,30]})}
+  if(e.target.closest('[data-rclear]')){route=null;renderRoute()}
+});
+
 function show(v){
   S.view=v;
-  for(const k of['map','list','favs'])$('#'+k).hidden=k!==v;
+  for(const k of['map','list','favs','route'])$('#'+k).hidden=k!==v;
   $('#views').hidden=v!=='map';
   $$('nav button').forEach(b=>b.classList.toggle('on',b.dataset.v===v));
   if(v==='map')map.invalidateSize();
   if(v==='list')list();
   if(v==='favs')favs();
+  if(v==='route')renderRoute();
 }
-function redraw(){pins();if(S.view==='list')list();if(S.view==='favs')favs()}
+function redraw(){pins();renderRoute();if(S.view==='list')list();if(S.view==='favs')favs()}
 
 function setFuel(f){
   S.fuel=f;LS.set('fuel',f);syncSoon();
@@ -723,7 +843,7 @@ $('.sortbar').onclick=e=>{const b=e.target.closest('[data-s]');if(b){S.sort=b.da
 $('#open').onclick=()=>{S.open=!S.open;LS.set('open',S.open);syncFilter();redraw()};
 
 function toggleFav(id){
-  const s=S.stations.find(x=>x.id===id)||S.favs[id];if(!s)return;
+  const s=stById(id)||S.favs[id];if(!s)return;
   if(S.favs[id]){delete S.favs[id];delete S.fp[id];delete S.hist[id];if(S.alarms[id]){delete S.alarms[id];LS.set('alarms',S.alarms)}S.order=S.order.filter(x=>x!==id);saveFp()}
   else{const{name,brand,street,houseNumber,postCode,place,lat,lng}=s;S.favs[id]={id,name,brand,street,houseNumber,postCode,place,lat,lng,g:'default'};S.order.push(id);favsFromList()}
   saveFavs();
@@ -731,7 +851,7 @@ function toggleFav(id){
   if(S.view==='favs')favs();
 }
 async function share(id){
-  const st=S.stations.find(x=>x.id===id),s=st||S.favs[id];if(!s)return;
+  const st=stById(id),s=st||S.favs[id];if(!s)return;
   const p=(st?prOf(st):S.fp[id]||{})[S.fuel];
   const link='https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(s.name+', '+addr(s));
   const text=`${s.brand||s.name}, ${s.place||''} – ${p==null?'kein Preis':p.toFixed(3).replace('.',',')+' €'} (${FN[S.fuel]}) – ${link}`;
