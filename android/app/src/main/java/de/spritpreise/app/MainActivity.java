@@ -227,8 +227,17 @@ public class MainActivity extends Activity {
         super.onDestroy();
     }
 
-    /** Für die Web-App: Teilen und Speichern, die die WebView selbst nicht kann. */
+    /** Für die Web-App: Teilen und Speichern, die die WebView selbst nicht kann, und die App-Version. */
     private class Bridge {
+        @JavascriptInterface
+        public String version() {
+            try {
+                return getPackageManager().getPackageInfo(getPackageName(), 0).versionName;
+            } catch (PackageManager.NameNotFoundException e) {
+                return "";
+            }
+        }
+
         @JavascriptInterface
         public void share(String text) {
             runOnUiThread(() -> {

@@ -201,6 +201,7 @@ dialog h4{margin:14px 0 6px}
     </div>
     <p class="mut">Für den Umwegrechner in der Liste. Leer lassen schaltet ihn ab.</p>
     <div class="row"><button type="button" id="exp">Daten exportieren</button><button type="button" id="impb">Daten importieren</button></div>
+    <div class="row" id="appver" hidden><span class="mut">App-Version <b id="appverv"></b></span><button type="button" id="updchk">Nach Updates suchen</button></div>
     <input type="file" id="imp" accept="application/json,.json" hidden>
     <p class="mut">Sichert Favoriten, Gruppen, Kartenausschnitte, Preisverlauf und Einstellungen als Datei. API-Keys werden nicht exportiert.</p>
     <p class="mut">Den kostenlosen Key gibt es auf creativecommons.tankerkoenig.de. Er wird nur lokal in diesem Browser gespeichert. Preisdaten: Tankerkönig.de (CC BY 4.0).</p>
@@ -770,6 +771,38 @@ $('#sf').onsubmit=async e=>{
 $('#res').onclick=e=>{const b=e.target.closest('[data-i]');if(b)go(S.res[b.dataset.i])};
 document.addEventListener('keydown',e=>{if(e.key==='Escape')hideRes()});
 document.addEventListener('pointerdown',e=>{if(!e.target.closest('#res,#sf'))hideRes()});
+
+/* Android-App: einmal täglich (und auf Wunsch) auf GitHub nach einer neueren APK suchen */
+const REPO='mohnstollen/spritpreise';
+const appVer=()=>window.Android?.version?.()||'';
+const newer=(a,b)=>{
+  const p=s=>String(s).replace(/^v/,'').split('.').map(x=>parseInt(x,10)||0),x=p(a),y=p(b);
+  for(let i=0;i<3;i++)if((x[i]||0)!==(y[i]||0))return (x[i]||0)>(y[i]||0);
+  return false;
+};
+async function checkUpdate(manual){
+  const v=appVer();if(!v)return;
+  if(!manual&&Date.now()-LS.get('updT',0)<864e5)return;
+  try{
+    const r=await fetch(`https://api.github.com/repos/${REPO}/releases/latest`,{headers:{Accept:'application/vnd.github+json'}});
+    if(!r.ok)throw new Error('GitHub antwortet mit HTTP '+r.status);
+    const tag=(await r.json()).tag_name||'';
+    LS.set('updT',Date.now());
+    if(newer(tag,v)&&(manual||LS.get('updSkip','')!==tag))return showAppUpdate(tag,v);
+    if(manual)ask({title:'Kein Update',text:`Du hast die neueste Version (${v}).`,cancel:null});
+  }catch(e){if(manual)ask({title:'Update-Prüfung fehlgeschlagen',text:e.message||'Keine Verbindung zu GitHub.',cancel:null})}
+}
+async function showAppUpdate(tag,v){
+  const ok=await ask({title:`Version ${tag.replace(/^v/,'')} verfügbar`,text:`Installiert ist ${v}. Die neue Version lässt sich direkt über die alte installieren, deine Daten bleiben erhalten.`,ok:'Herunterladen',cancel:'Später'});
+  if(ok)location.href=`https://github.com/${REPO}/releases/download/${encodeURIComponent(tag)}/spritpreise.apk`;
+  else LS.set('updSkip',tag);
+}
+if(appVer()){
+  $('#appver').hidden=false;$('#appverv').textContent=appVer();
+  $('#updchk').onclick=()=>checkUpdate(true);
+  setTimeout(()=>checkUpdate(false),3000);
+  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')checkUpdate(false)});
+}
 
 /* Service Worker und Update-Hinweis */
 if('serviceWorker'in navigator&&!window.Android){
