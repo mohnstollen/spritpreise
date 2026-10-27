@@ -87,10 +87,17 @@ dialog select{display:block;width:100%;margin-top:6px;padding:10px;border:1px so
 .leaflet-container{background:var(--bg)}
 @media(prefers-color-scheme:dark){.leaflet-tile-pane{filter:invert(1) hue-rotate(180deg) brightness(.95) contrast(.9)}}
 .leaflet-traffic-pane{pointer-events:none}
+/* Bei eingeblendetem Verkehr wird die Grundkarte grau, damit Grün/Orange/Rot nur noch Verkehr bedeuten */
+#map.trf .leaflet-tile-pane{filter:grayscale(1) brightness(1.05) contrast(.8)}
+@media(prefers-color-scheme:dark){#map.trf .leaflet-tile-pane{filter:invert(1) grayscale(1) brightness(.75) contrast(.9)}}
 .fab{position:absolute;z-index:1000;right:12px;bottom:104px;display:flex;flex-direction:column;gap:8px;align-items:flex-end}
 .fab button,.fab a{background:var(--card);color:var(--fg);border:1px solid var(--line);border-radius:18px;padding:7px 14px;font-weight:600;font-size:14px;text-decoration:none;box-shadow:0 1px 4px #0004}
 .fab a{font-size:13px;padding:5px 12px;color:var(--mut)}
-#trf[aria-pressed=true]{background:var(--amber);color:#14181c;border-color:var(--amber)}
+#trf[aria-pressed=true],#sat[aria-pressed=true]{background:var(--amber);color:#14181c;border-color:var(--amber)}
+/* Luftbild: kein Invertieren im Dark Mode; bei Verkehr entsättigt, damit die Verkehrsfarben herausstechen */
+#map.sat .leaflet-tile-pane{filter:none}
+#map.sat.trf .leaflet-tile-pane{filter:saturate(.3) brightness(.9)}
+@media(prefers-color-scheme:dark){#map.sat .leaflet-tile-pane{filter:brightness(.85)}#map.sat.trf .leaflet-tile-pane{filter:saturate(.3) brightness(.75)}}
 .pin.dot{font-size:0;width:12px;height:12px;padding:0;border-radius:50%;transform:translate(-50%,-50%)}
 .hb{background:none;border:1px solid #3a444c;color:#cfd6da;border-radius:8px;padding:8px 9px;font-weight:600}
 .hb[aria-pressed=true]{background:var(--amber);color:#14181c;border-color:var(--amber)}
@@ -146,7 +153,7 @@ dialog h4{margin:14px 0 6px}
   <div id="res" hidden></div>
   <div id="views"></div>
   <section id="map">
-    <div class="fab"><a id="gmap" href="https://www.google.com/maps/data=!5m1!1e1" target="_blank" rel="noopener" aria-label="Verkehrslage in Google Maps öffnen">Google Maps ↗</a><button id="trf" aria-pressed="false">Verkehr</button></div>
+    <div class="fab"><a id="gmap" href="https://www.google.com/maps/data=!5m1!1e1" target="_blank" rel="noopener" aria-label="Verkehrslage in Google Maps öffnen">Google Maps ↗</a><button id="sat" aria-pressed="false">Luftbild</button><button id="trf" aria-pressed="false">Verkehr</button></div>
     <button id="loc" aria-label="Mein Standort">◎</button>
   </section>
   <section id="list" hidden>
@@ -171,7 +178,13 @@ dialog h4{margin:14px 0 6px}
     <label style="margin-top:12px">TomTom API-Key (Verkehrslage, optional)
       <input id="tt" autocomplete="off" spellcheck="false" placeholder="Key von developer.tomtom.com">
     </label>
-    <p class="mut">Für den Button „Verkehr“ auf der Karte: grün = frei, orange = zähflüssig, rot = Stau. Kostenlos bis 50.000 Kartenkacheln pro Tag.</p>
+    <label style="margin-top:12px">Verkehrsanzeige
+      <select id="tstyle">
+        <option value="all">Alle Straßen (grün bis rot)</option>
+        <option value="jam">Nur Staus und stockender Verkehr</option>
+      </select>
+    </label>
+    <p class="mut">Für den Button „Verkehr“ auf der Karte: grün = frei, orange = zähflüssig, rot = Stau. Derselbe Key schaltet auch den Button „Luftbild“ frei. Kostenlos bis 50.000 Kartenkacheln pro Tag.</p>
     <label style="margin-top:12px">Startansicht
       <select id="start"></select>
     </label>
@@ -219,7 +232,7 @@ dialog h4{margin:14px 0 6px}
 <script>
 const $=s=>document.querySelector(s), $$=s=>document.querySelectorAll(s);
 const LS={get:(k,d)=>{try{return JSON.parse(localStorage.getItem(k))??d}catch{return d}},set:(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch{}}};
-const S={key:LS.get('key',''),fuel:LS.get('fuel','e5'),sort:LS.get('sort','dist'),favs:LS.get('favs',{}),fp:LS.get('fp',{}),hist:LS.get('hist',{}),wait:0,open:LS.get('open',false),grp:'all',groups:LS.get('groups',[{id:'default',name:'Allgemein'}]),order:[],views:LS.get('views',[]),lit:LS.get('lit',40),cons:LS.get('cons',7),hide:LS.get('hide',[]),noBAB:LS.get('noBAB',false),tt:LS.get('tt',''),traffic:LS.get('traffic',false),nav:LS.get('nav',/iP(hone|ad|od)/.test(navigator.userAgent)?'apple':'google'),stations:[],me:null,view:'map'};
+const S={key:LS.get('key',''),fuel:LS.get('fuel','e5'),sort:LS.get('sort','dist'),favs:LS.get('favs',{}),fp:LS.get('fp',{}),hist:LS.get('hist',{}),wait:0,open:LS.get('open',false),grp:'all',groups:LS.get('groups',[{id:'default',name:'Allgemein'}]),order:[],views:LS.get('views',[]),lit:LS.get('lit',40),cons:LS.get('cons',7),hide:LS.get('hide',[]),noBAB:LS.get('noBAB',false),tt:LS.get('tt',''),traffic:LS.get('traffic',false),tstyle:LS.get('tstyle','all'),base:LS.get('base','osm'),nav:LS.get('nav',/iP(hone|ad|od)/.test(navigator.userAgent)?'apple':'google'),stations:[],me:null,view:'map'};
 const FN={e5:'E5',e10:'E10',diesel:'Diesel'};
 const API='https://creativecommons.tankerkoenig.de/json/';
 const FRESH=120000;
@@ -255,22 +268,33 @@ function ask({title,text='',html='',input=null,ok='OK',cancel='Abbrechen',del=fa
 /* Karte */
 const map=L.map('map',{zoomControl:false,attributionControl:true}).setView([51.16,10.45],6);
 map.attributionControl.setPrefix(false);
-L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap · Preise: Tankerkönig.de (CC BY 4.0)'}).addTo(map);
+const osm=L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap'}).addTo(map);
+map.attributionControl.addAttribution('Preise: Tankerkönig.de (CC BY 4.0)');
 const layer=L.layerGroup().addTo(map);
 
 /* Verkehrslage: TomTom-Flusskacheln in eigener Ebene (nicht vom Dark-Mode-Filter der Karte invertiert).
    Der Zeitstempel im URL erzwingt alle 5 Minuten frische Kacheln. */
 const DARK=matchMedia('(prefers-color-scheme: dark)');
+// Fehlgeschlagene Kachel einmal direkt abfragen, um TomToms Begründung (Status und Text) anzeigen zu können; '' = war nur vorübergehend
+const tileWhy=src=>fetch(src).then(async r=>r.ok?'':`HTTP ${r.status}${(t=>t?': '+t:'')((await r.text()).trim().slice(0,80))}`).catch(()=>'keine Verbindung zu TomTom');
+const needTomTom=async what=>{if(await ask({title:'TomTom-Key fehlt',text:`Für ${what} brauchst du einen kostenlosen API-Key von developer.tomtom.com. Trag ihn danach in den Einstellungen ein.`,ok:'Zu den Einstellungen'}))openSettings()};
 map.createPane('traffic').style.zIndex=250;
-let traffic=null,trafficT=0,trafficErr=false;
-const trafficUrl=()=>`https://api.tomtom.com/traffic/map/4/tile/flow/${DARK.matches?'relative0-dark':'relative0'}/{z}/{x}/{y}.png?key=${encodeURIComponent(S.tt)}&tileSize=256&t=${trafficT}`;
+let traffic=null,trafficT=0,trafficErr=false,trafficWhy='';
+// „Nur Staus“: relative-delay färbt nur Abschnitte, auf denen es langsamer als normal geht
+const trafficStyle=()=>S.tstyle==='jam'?'relative-delay':DARK.matches?'relative0-dark':'relative0';
+const trafficUrl=()=>`https://api.tomtom.com/traffic/map/4/tile/flow/${trafficStyle()}/{z}/{x}/{y}.png?key=${encodeURIComponent(S.tt)}&tileSize=256&t=${trafficT}`;
 function setTraffic(on){
   S.traffic=on;LS.set('traffic',on);$('#trf').setAttribute('aria-pressed',on&&!!S.tt);
-  traffic?.remove();traffic=null;trafficErr=false;
+  traffic?.remove();traffic=null;trafficErr=false;trafficWhy='';$('#trf').textContent='Verkehr';
+  $('#map').classList.toggle('trf',on&&!!S.tt);
   if(!on||!S.tt)return;
   trafficT=Math.floor(Date.now()/3e5);
   traffic=L.tileLayer(trafficUrl(),{pane:'traffic',maxZoom:19,attribution:'Verkehr © TomTom'})
-    .on('tileerror',()=>{if(!trafficErr&&navigator.onLine){trafficErr=true;msg('Verkehrslage nicht verfügbar. TomTom-Key prüfen.');setTimeout(()=>msg(''),4000)}})
+    .on('tileerror',e=>{
+      if(trafficErr||!navigator.onLine)return;
+      trafficErr=true;
+      tileWhy(e.tile.src).then(d=>{if(!d){trafficErr=false;return}trafficWhy=d;$('#trf').textContent='Verkehr ⚠';msg(`Verkehrslage nicht verfügbar (${d})`);setTimeout(()=>msg(''),8000)});
+    })
     .addTo(map);
 }
 function refreshTraffic(){
@@ -280,8 +304,39 @@ function refreshTraffic(){
 setInterval(refreshTraffic,60000);
 DARK.addEventListener?.('change',()=>traffic?.setUrl(trafficUrl()));
 $('#trf').onclick=async()=>{
+  if(S.tt&&trafficWhy){
+    if(await ask({title:'Verkehrslage nicht verfügbar',text:`TomTom antwortet: ${trafficWhy}. Prüfe den TomTom-Key in den Einstellungen und ob er unter developer.tomtom.com aktiv ist.`,ok:'Ausschalten',cancel:'Schließen'}))setTraffic(false);
+    return;
+  }
   if(S.tt)return setTraffic(!S.traffic);
-  if(await ask({title:'TomTom-Key fehlt',text:'Für die Verkehrslage brauchst du einen kostenlosen API-Key von developer.tomtom.com. Trag ihn danach in den Einstellungen ein.',ok:'Zu den Einstellungen'}))openSettings();
+  needTomTom('die Verkehrslage');
+};
+
+/* Luftbild: TomTom-Satellitenkacheln (Maxar) statt OSM, gleicher Key wie die Verkehrslage */
+let sat=null,satErr=false,satWhy='';
+const satUrl=()=>`https://api.tomtom.com/map/1/tile/sat/main/{z}/{x}/{y}.jpg?key=${encodeURIComponent(S.tt)}`;
+function setBase(b){
+  const on=b==='sat'&&!!S.tt;
+  S.base=b;LS.set('base',b);
+  sat?.remove();sat=null;satErr=false;satWhy='';
+  $('#sat').textContent='Luftbild';$('#sat').setAttribute('aria-pressed',on);$('#map').classList.toggle('sat',on);
+  if(!on){if(!map.hasLayer(osm))osm.addTo(map);return}
+  osm.remove();
+  sat=L.tileLayer(satUrl(),{maxZoom:19,attribution:'Luftbild © TomTom, Maxar'})
+    .on('tileerror',e=>{
+      if(satErr||!navigator.onLine)return;
+      satErr=true;
+      tileWhy(e.tile.src).then(d=>{if(!d){satErr=false;return}satWhy=d;$('#sat').textContent='Luftbild ⚠';msg(`Luftbild nicht verfügbar (${d})`);setTimeout(()=>msg(''),8000)});
+    })
+    .addTo(map);
+}
+$('#sat').onclick=async()=>{
+  if(S.tt&&satWhy){
+    if(await ask({title:'Luftbild nicht verfügbar',text:`TomTom antwortet: ${satWhy}. Prüfe den TomTom-Key in den Einstellungen und ob er unter developer.tomtom.com aktiv ist.`,ok:'Zur Karte wechseln',cancel:'Schließen'}))setBase('osm');
+    return;
+  }
+  if(S.tt)return setBase(S.base==='sat'?'osm':'sat');
+  needTomTom('Luftbilder');
 };
 /* Zusatz: aktuellen Ausschnitt mit Verkehrsebene in Google Maps öffnen */
 function syncGmap(){const c=map.getCenter();$('#gmap').href=`https://www.google.com/maps/@${c.lat.toFixed(5)},${c.lng.toFixed(5)},${map.getZoom()}z/data=!5m1!1e1`}
@@ -527,6 +582,7 @@ function openSettings(){
   const d=$('#dlg');if(d.open)return;
   $('#key').value=S.key;
   $('#tt').value=S.tt;
+  $('#tstyle').value=S.tstyle;
   $('#lit').value=S.lit?String(S.lit).replace('.',','):'';
   $('#cons').value=S.cons?String(S.cons).replace('.',','):'';
   $('#navapp').value=S.nav;
@@ -557,7 +613,7 @@ $('#flt').addEventListener('close',e=>{
 });
 
 /* Daten sichern und wiederherstellen */
-const KEYS=['favs','order','groups','views','start','lit','cons','fuel','sort','open','hide','noBAB','nav','hist','traffic'];
+const KEYS=['favs','order','groups','views','start','lit','cons','fuel','sort','open','hide','noBAB','nav','hist','traffic','tstyle','base'];
 async function exportData(){
   const data={app:'spritpreise',version:1,exported:new Date().toISOString()};
   KEYS.forEach(k=>{const v=LS.get(k,null);if(v!=null)data[k]=v});
@@ -590,7 +646,9 @@ $('#dlg').addEventListener('close',e=>{
   S.key=$('#key').value.trim();LS.set('key',S.key);LS.set('start',$('#start').value);
   S.lit=num($('#lit').value);S.cons=num($('#cons').value);LS.set('lit',S.lit);LS.set('cons',S.cons);
   S.nav=$('#navapp').value;LS.set('nav',S.nav);
-  const tt=$('#tt').value.trim();if(tt!==S.tt){S.tt=tt;LS.set('tt',tt);setTraffic(S.traffic||!!tt)}
+  const tt=$('#tt').value.trim(),ts=$('#tstyle').value;
+  if(ts!==S.tstyle){S.tstyle=ts;LS.set('tstyle',ts);if(tt===S.tt)setTraffic(S.traffic)}
+  if(tt!==S.tt){S.tt=tt;LS.set('tt',tt);setTraffic(S.traffic||!!tt);setBase(S.base)}
   msg('');redraw();load(true);
 });
 /* Nach Rückkehr in die App veraltete Preise nachladen */
@@ -737,7 +795,7 @@ if(Array.isArray(last?.stations)&&last.q){S.stations=last.stations;lastQ=last.q}
 syncOrder();syncFilter();
 setFuel(S.fuel);
 drawViews();
-setTraffic(S.traffic);syncGmap();
+setBase(S.base);setTraffic(S.traffic);syncGmap();
 const hv=location.hash.slice(1);
 if(hv==='list'||hv==='favs')show(hv);
 if(!S.key)openSettings();

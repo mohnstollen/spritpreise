@@ -3,3 +3,5 @@ build/
 app/build/
 vendor/
 local.properties
+*.jks
+*.jks.b64
