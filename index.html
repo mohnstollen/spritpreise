@@ -66,6 +66,10 @@ dialog menu #save{background:var(--ink);color:var(--amber);border-color:var(--in
 .rform input,.rform select{padding:10px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--fg);min-width:0}
 .rrow{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .rrow select{flex:1}
+.rpair{display:flex;gap:8px;align-items:center}
+.rpair .rins{flex:1;display:flex;flex-direction:column;gap:8px;min-width:0}
+#rswap{flex:none;width:44px;height:44px;border:1px solid var(--line);border-radius:50%;background:var(--card);color:var(--fg);font-size:20px}
+#rfav{margin-bottom:8px;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
 .rrow button,#rsum button{border:0;border-radius:8px;padding:10px 14px;font-weight:700;background:var(--ink);color:var(--amber)}
 #rsum button.sec{background:none;border:1px solid var(--line);color:var(--fg);font-weight:600}
 #rsum .row{margin:8px 0}
@@ -175,9 +179,15 @@ dialog h4{margin:14px 0 6px}
   </section>
   <section id="favs" hidden></section>
   <section id="route" hidden>
+    <div id="rfav" class="grpbar"></div>
     <form id="rf" class="rform">
-      <input id="rs" placeholder="Start (leer = mein Standort)" autocomplete="off" aria-label="Start">
-      <input id="rd" placeholder="Ziel, z. B. München Hbf" autocomplete="off" aria-label="Ziel">
+      <div class="rpair">
+        <div class="rins">
+          <input id="rs" placeholder="Start (leer = mein Standort)" autocomplete="off" aria-label="Start">
+          <input id="rd" placeholder="Ziel (leer = mein Standort)" autocomplete="off" aria-label="Ziel">
+        </div>
+        <button type="button" id="rswap" aria-label="Start und Ziel tauschen">⇅</button>
+      </div>
       <div class="rrow">
         <select id="rc" aria-label="Abstand zur Strecke"><option value="1">max. 1 km Abstand</option><option value="2">max. 2 km Abstand</option><option value="5">max. 5 km Abstand</option></select>
         <button id="rgo">Route berechnen</button>
@@ -269,7 +279,7 @@ dialog h4{margin:14px 0 6px}
 <script>
 const $=s=>document.querySelector(s), $$=s=>document.querySelectorAll(s);
 const LS={get:(k,d)=>{try{return JSON.parse(localStorage.getItem(k))??d}catch{return d}},set:(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch{}}};
-const S={key:LS.get('key',''),fuel:LS.get('fuel','e5'),sort:LS.get('sort','dist'),favs:LS.get('favs',{}),fp:LS.get('fp',{}),hist:LS.get('hist',{}),wait:0,open:LS.get('open',false),grp:'all',groups:LS.get('groups',[{id:'default',name:'Allgemein'}]),order:[],views:LS.get('views',[]),lit:LS.get('lit',40),cons:LS.get('cons',7),hide:LS.get('hide',[]),noBAB:LS.get('noBAB',false),tt:LS.get('tt',''),traffic:LS.get('traffic',false),tstyle:LS.get('tstyle','all'),base:LS.get('base','osm'),alarms:LS.get('alarms',{}),wgrp:LS.get('wgrp','all'),bgint:LS.get('bgint',30),nav:LS.get('nav',/iP(hone|ad|od)/.test(navigator.userAgent)?'apple':'google'),stations:[],me:null,view:'map'};
+const S={key:LS.get('key',''),fuel:LS.get('fuel','e5'),sort:LS.get('sort','dist'),favs:LS.get('favs',{}),fp:LS.get('fp',{}),hist:LS.get('hist',{}),wait:0,open:LS.get('open',false),grp:'all',groups:LS.get('groups',[{id:'default',name:'Allgemein'}]),order:[],views:LS.get('views',[]),lit:LS.get('lit',40),cons:LS.get('cons',7),hide:LS.get('hide',[]),noBAB:LS.get('noBAB',false),tt:LS.get('tt',''),traffic:LS.get('traffic',false),tstyle:LS.get('tstyle','all'),base:LS.get('base','osm'),alarms:LS.get('alarms',{}),wgrp:LS.get('wgrp','all'),bgint:LS.get('bgint',30),routes:LS.get('routes',[]),nav:LS.get('nav',/iP(hone|ad|od)/.test(navigator.userAgent)?'apple':'google'),stations:[],me:null,view:'map'};
 const FN={e5:'E5',e10:'E10',diesel:'Diesel'};
 const API='https://creativecommons.tankerkoenig.de/json/';
 const FRESH=120000;
@@ -678,7 +688,7 @@ async function calcRoute(){
   if(!S.tt)return needTomTom('die Routenplanung');
   const start=$('#rs').value.trim(),dest=$('#rd').value.trim(),corr=+$('#rc').value;
   LS.set('rStart',start);LS.set('rDest',dest);LS.set('rCorr',corr);
-  if(!dest)return st('Bitte ein Ziel eingeben.');
+  if(!start&&!dest)return st('Bitte Start oder Ziel eingeben.');
   $('#rgo').disabled=true;
   try{
     st('Suche Start und Ziel …');
@@ -722,7 +732,7 @@ function renderRoute(){
   top.forEach((o,i)=>L.marker([o.s.lat,o.s.lng],{zIndexOffset:2000-i,icon:L.divIcon({className:'',iconSize:[0,0],html:`<div class="pin g">${i+1}. ${fmt(o.p)}</div>`})}).bindPopup(card(o.s,prOf(o.s),null),{minWidth:250}).addTo(routeLayer));
   route.bounds=line.getBounds();
   const h=Math.floor(route.sec/3600),m=Math.round(route.sec%3600/60);
-  $('#rsum').innerHTML=`<div class="sum">${km(route.km)} · ${h} h ${String(m).padStart(2,'0')} min · ${ranked.length} Tankstellen mit ${FN[S.fuel]} bis ${route.corr} km neben der Strecke${top[0]?` · günstigste <b>${fmt(top[0].p)} €</b>`:''}</div><div class="row"><button data-rmap>Auf Karte zeigen</button><button class="sec" data-rclear>Route löschen</button></div>`;
+  $('#rsum').innerHTML=`<div class="sum">${km(route.km)} · ${h} h ${String(m).padStart(2,'0')} min · ${ranked.length} ${ranked.length===1?'Tankstelle':'Tankstellen'} mit ${FN[S.fuel]} bis ${route.corr} km neben der Strecke${top[0]?` · günstigste <b>${fmt(top[0].p)} €</b>`:''}</div><div class="row"><button data-rmap>Auf Karte zeigen</button><button class="sec" data-rclear>Route löschen</button></div>`;
   $('#ritems').innerHTML=top.map((o,i)=>{
     const sv=calc&&ranked.length>1?Math.abs(avg-o.c)<0.005?'':`<div class="sv ${avg>o.c?'g':'r'}">${eur(avg-o.c)} ${avg>o.c?'günstiger':'teurer'} als der Durchschnitt auf der Strecke, inkl. Umweg</div>`:'';
     return card(o.s,prOf(o.s),null,`<div class="sv mut">${i+1}. bei km ${Math.round(o.at)} · ${km(o.off)} neben der Strecke · Umweg ca. ${km(o.det)}</div>${sv}`);
@@ -730,6 +740,43 @@ function renderRoute(){
 }
 $('#rf').onsubmit=e=>{e.preventDefault();calcRoute()};
 $('#rs').value=LS.get('rStart','');$('#rd').value=LS.get('rDest','');$('#rc').value=String(LS.get('rCorr',2));
+$('#rswap').onclick=()=>{const a=$('#rs').value;$('#rs').value=$('#rd').value;$('#rd').value=a};
+
+/* Gemerkte Routen („Strecke zu Oma“): Antippen rechnet sofort, lange drücken zum Umbenennen oder Löschen */
+function drawRfav(){
+  $('#rfav').innerHTML=S.routes.map(r=>`<button data-rfav="${esc(r.id)}">${esc(r.name)}</button>`).join('')+'<button data-radd>＋ Route merken</button>';
+}
+async function saveRoute(){
+  const start=$('#rs').value.trim(),dest=$('#rd').value.trim();
+  if(!start&&!dest)return $('#rstat').textContent='Erst Start oder Ziel eingeben, dann merken.';
+  const nm=await ask({title:'Route merken',text:`${start||'Mein Standort'} → ${dest||'Mein Standort'}`,input:dest||start,ok:'Merken'});if(!nm)return;
+  S.routes.push({id:'r'+Date.now(),name:nm,start,dest,corr:+$('#rc').value});
+  LS.set('routes',S.routes);drawRfav();
+  $('#rstat').textContent='Gemerkt. Antippen berechnet die Route, lange drücken zum Umbenennen oder Löschen.';
+}
+async function editRoute(id){
+  const r=S.routes.find(x=>x.id===id);if(!r)return;
+  const nm=await ask({title:'Route bearbeiten',text:`${r.start||'Mein Standort'} → ${r.dest||'Mein Standort'}`,input:r.name,ok:'Speichern',del:true});
+  if(nm===false){
+    if(!await ask({title:`Route „${r.name}“ löschen?`,ok:'Löschen'}))return;
+    S.routes=S.routes.filter(x=>x!==r);
+  }else if(nm)r.name=nm;
+  else return;
+  LS.set('routes',S.routes);drawRfav();
+}
+let rlpT,rlp=false;
+const rfb=$('#rfav');
+rfb.addEventListener('pointerdown',e=>{const b=e.target.closest('[data-rfav]');if(!b)return;rlp=false;rlpT=setTimeout(()=>{rlp=true;editRoute(b.dataset.rfav)},600)});
+['pointerup','pointercancel','pointerleave'].forEach(ev=>rfb.addEventListener(ev,()=>clearTimeout(rlpT)));
+rfb.addEventListener('contextmenu',e=>e.preventDefault());
+rfb.onclick=e=>{
+  if(rlp){rlp=false;return}
+  if(e.target.closest('[data-radd]'))return saveRoute();
+  const b=e.target.closest('[data-rfav]');if(!b||$('#rgo').disabled)return;
+  const r=S.routes.find(x=>x.id===b.dataset.rfav);if(!r)return;
+  $('#rs').value=r.start;$('#rd').value=r.dest;$('#rc').value=String(r.corr||2);calcRoute();
+};
+drawRfav();
 $('#rsum').addEventListener('click',e=>{
   if(e.target.closest('[data-rmap]')){show('map');map.fitBounds(route.bounds,{padding:[30,30]})}
   if(e.target.closest('[data-rclear]')){route=null;renderRoute()}
@@ -791,7 +838,7 @@ $('#flt').addEventListener('close',e=>{
 });
 
 /* Daten sichern und wiederherstellen */
-const KEYS=['favs','order','groups','views','start','lit','cons','fuel','sort','open','hide','noBAB','nav','hist','traffic','tstyle','base','alarms','wgrp','bgint'];
+const KEYS=['favs','order','groups','views','start','lit','cons','fuel','sort','open','hide','noBAB','nav','hist','traffic','tstyle','base','alarms','wgrp','bgint','routes'];
 async function exportData(){
   const data={app:'spritpreise',version:1,exported:new Date().toISOString()};
   KEYS.forEach(k=>{const v=LS.get(k,null);if(v!=null)data[k]=v});
