@@ -71,6 +71,7 @@ dialog menu #save{background:var(--ink);color:var(--amber);border-color:var(--in
 .grpbar button.on{background:var(--ink);color:var(--amber);border-color:var(--ink)}
 .mv{display:flex;gap:8px;align-items:center;margin-top:8px}
 .mv button{border:1px solid var(--line);background:none;border-radius:8px;padding:6px 12px}
+.mv button[aria-pressed=true]{background:var(--amber);border-color:var(--amber)}
 .mv select{flex:1;min-width:0;padding:6px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--fg)}
 #views{position:absolute;z-index:1000;top:10px;left:10px;right:10px;display:flex;gap:6px;overflow-x:auto;pointer-events:none;scrollbar-width:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
 #views::-webkit-scrollbar{display:none}
@@ -201,6 +202,20 @@ dialog h4{margin:14px 0 6px}
     </div>
     <p class="mut">Für den Umwegrechner in der Liste. Leer lassen schaltet ihn ab.</p>
     <div class="row"><button type="button" id="exp">Daten exportieren</button><button type="button" id="impb">Daten importieren</button></div>
+    <div id="appbg" hidden>
+      <label style="margin-top:12px">Widget zeigt
+        <select id="wgrp"></select>
+      </label>
+      <label style="margin-top:12px">Hintergrund-Abfrage für Widget und Preisalarm
+        <select id="bgint">
+          <option value="30">alle 30 Minuten</option>
+          <option value="60">stündlich</option>
+          <option value="120">alle 2 Stunden</option>
+          <option value="0">aus</option>
+        </select>
+      </label>
+      <p class="mut">Fragt nur die Favoriten im Widget und mit Preisalarm ab. Android kann die Abfrage zum Akkusparen verzögern. Den Alarm stellst du bei einem Favoriten mit 🔔 ein.</p>
+    </div>
     <div class="row" id="appver" hidden><span class="mut">App-Version <b id="appverv"></b></span><button type="button" id="updchk">Nach Updates suchen</button></div>
     <input type="file" id="imp" accept="application/json,.json" hidden>
     <p class="mut">Sichert Favoriten, Gruppen, Kartenausschnitte, Preisverlauf und Einstellungen als Datei. API-Keys werden nicht exportiert.</p>
@@ -233,7 +248,7 @@ dialog h4{margin:14px 0 6px}
 <script>
 const $=s=>document.querySelector(s), $$=s=>document.querySelectorAll(s);
 const LS={get:(k,d)=>{try{return JSON.parse(localStorage.getItem(k))??d}catch{return d}},set:(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch{}}};
-const S={key:LS.get('key',''),fuel:LS.get('fuel','e5'),sort:LS.get('sort','dist'),favs:LS.get('favs',{}),fp:LS.get('fp',{}),hist:LS.get('hist',{}),wait:0,open:LS.get('open',false),grp:'all',groups:LS.get('groups',[{id:'default',name:'Allgemein'}]),order:[],views:LS.get('views',[]),lit:LS.get('lit',40),cons:LS.get('cons',7),hide:LS.get('hide',[]),noBAB:LS.get('noBAB',false),tt:LS.get('tt',''),traffic:LS.get('traffic',false),tstyle:LS.get('tstyle','all'),base:LS.get('base','osm'),nav:LS.get('nav',/iP(hone|ad|od)/.test(navigator.userAgent)?'apple':'google'),stations:[],me:null,view:'map'};
+const S={key:LS.get('key',''),fuel:LS.get('fuel','e5'),sort:LS.get('sort','dist'),favs:LS.get('favs',{}),fp:LS.get('fp',{}),hist:LS.get('hist',{}),wait:0,open:LS.get('open',false),grp:'all',groups:LS.get('groups',[{id:'default',name:'Allgemein'}]),order:[],views:LS.get('views',[]),lit:LS.get('lit',40),cons:LS.get('cons',7),hide:LS.get('hide',[]),noBAB:LS.get('noBAB',false),tt:LS.get('tt',''),traffic:LS.get('traffic',false),tstyle:LS.get('tstyle','all'),base:LS.get('base','osm'),alarms:LS.get('alarms',{}),wgrp:LS.get('wgrp','all'),bgint:LS.get('bgint',30),nav:LS.get('nav',/iP(hone|ad|od)/.test(navigator.userAgent)?'apple':'google'),stations:[],me:null,view:'map'};
 const FN={e5:'E5',e10:'E10',diesel:'Diesel'};
 const API='https://creativecommons.tankerkoenig.de/json/';
 const FRESH=120000;
@@ -453,15 +468,54 @@ function list(){
   $$('.sortbar button').forEach(b=>b.classList.toggle('on',b.dataset.s===srt));
 }
 
+/* Android-App: Widget und Preisalarm. Die App fragt im Hintergrund selbst ab; hier wird nur
+   konfiguriert und abgeglichen (Konfiguration hin, im Hintergrund geladene Preise zurück). */
+const APP=!!window.Android?.syncConfig;
+let syncT;
+function syncNative(){
+  if(!APP)return;
+  const names={},prices={},alarms={};
+  for(const id of S.order){
+    const s=S.favs[id];names[id]={n:s.brand||s.name||'Tankstelle',p:s.place||''};
+    if(S.fp[id]?.t)prices[id]=S.fp[id];
+    if(S.alarms[id])alarms[id]=S.alarms[id];
+  }
+  const wg=S.groups.some(g=>g.id===S.wgrp)?S.wgrp:'all';
+  const widget=S.order.filter(id=>wg==='all'||gOf(id)===wg).slice(0,5);
+  try{Android.syncConfig(JSON.stringify({key:S.key,fuel:S.fuel,interval:S.bgint,widget,alarms,names,prices}))}catch{}
+}
+function syncSoon(){if(APP){clearTimeout(syncT);syncT=setTimeout(syncNative,400)}}
+function pullNative(){
+  if(!APP)return;
+  let got;try{got=JSON.parse(Android.prices()||'{}')}catch{return}
+  let ch=false;
+  for(const id in got){
+    const p=got[id];
+    if(S.favs[id]&&p.t>(S.fp[id]?.t||0)){S.fp[id]={e5:n(p.e5),e10:n(p.e10),diesel:n(p.diesel),open:p.open!==false,t:p.t};rec(id,S.fp[id],p.t);ch=true}
+  }
+  if(ch){saveFp();if(S.view==='favs')drawFavs()}
+}
+async function setAlarm(id){
+  const s=S.favs[id];if(!s)return;
+  const a=S.alarms[id],f=a?.fuel||S.fuel,cur=S.fp[id]?.[f];
+  const pre=a?a.below:cur!=null?cur-0.02:null;
+  const off=S.bgint?'':' Achtung: Die Hintergrund-Abfrage ist in den Einstellungen ausgeschaltet.';
+  const v=await ask({title:`Preisalarm ${s.brand||s.name}`,text:`Benachrichtigung, sobald ${FN[f]} auf oder unter diesen Preis fällt${cur!=null?` (aktuell ${cur.toFixed(3).replace('.',',')} €)`:''}.${off}`,input:pre!=null?pre.toFixed(3).replace('.',','):'',ok:'Speichern',del:!!a});
+  if(v===null||(v!==false&&!num(v)&&!a))return;
+  if(v===false||!num(v))delete S.alarms[id];
+  else{S.alarms[id]={fuel:f,below:Math.round(num(v)*1000)/1000};Android.requestNotify?.()}
+  LS.set('alarms',S.alarms);syncNative();drawFavs();
+}
+
 /* Favoriten: Preise mit Zeitstempel je Station, Verlauf lokal (nur bei Preisänderung ein neuer Eintrag) */
 function gOf(id){return S.groups.some(g=>g.id===S.favs[id].g)?S.favs[id].g:'default'}
 function syncOrder(){S.order=LS.get('order',[]).filter(id=>S.favs[id]);for(const id in S.favs)if(!S.order.includes(id))S.order.push(id)}
 let persistAsked=false;
 function saveFavs(){
-  LS.set('favs',S.favs);LS.set('order',S.order);LS.set('groups',S.groups);
+  LS.set('favs',S.favs);LS.set('order',S.order);LS.set('groups',S.groups);syncSoon();
   if(!persistAsked&&S.order.length){persistAsked=true;navigator.storage?.persisted?.().then(p=>p||navigator.storage.persist()).catch(()=>{})}
 }
-function saveFp(){LS.set('fp',S.fp);LS.set('hist',S.hist)}
+function saveFp(){LS.set('fp',S.fp);LS.set('hist',S.hist);syncSoon()}
 function rec(id,pr,t){
   if(pr.e5==null&&pr.e10==null&&pr.diesel==null)return;
   const h=S.hist[id]||(S.hist[id]=[]),l=h[h.length-1],e=[t,pr.e5,pr.e10,pr.diesel];
@@ -505,7 +559,7 @@ function drawFavs(){
   const ts=ids.map(id=>S.fp[id]?.t).filter(Boolean);
   const opts=id=>S.groups.map(g=>`<option value="${esc(g.id)}"${g.id===gOf(id)?' selected':''}>${esc(g.name)}</option>`).join('');
   $('#favs').innerHTML=`<div class="grpbar">${chips}<button data-gact="add">＋ Gruppe</button>${tools}</div>`+(ts.length?`<p class="mut" style="margin:0 0 8px">Stand ${when(Math.min(...ts))}</p>`:'')+
-    (ids.length?ids.map(id=>{const s=S.favs[id];return card(s,S.fp[id]||{},dist(r,[s.lat,s.lng]),spark(id)+`<div class="mv"><button data-mv="-1" data-id="${esc(id)}" aria-label="Nach oben">▲</button><button data-mv="1" data-id="${esc(id)}" aria-label="Nach unten">▼</button><select data-sel="${esc(id)}" aria-label="Gruppe">${opts(id)}</select></div>`)}).join(''):'<p class="empty">Keine Favoriten in dieser Ansicht. Tippe bei einer Tankstelle auf ☆.</p>');
+    (ids.length?ids.map(id=>{const s=S.favs[id],a=S.alarms[id];return card(s,S.fp[id]||{},dist(r,[s.lat,s.lng]),spark(id)+(APP&&a?`<div class="sv mut">🔔 Alarm bei ${FN[a.fuel]} ≤ ${fmt(a.below)} €</div>`:'')+`<div class="mv"><button data-mv="-1" data-id="${esc(id)}" aria-label="Nach oben">▲</button><button data-mv="1" data-id="${esc(id)}" aria-label="Nach unten">▼</button>${APP?`<button data-alarm="${esc(id)}" aria-label="Preisalarm" aria-pressed="${!!a}">🔔</button>`:''}<select data-sel="${esc(id)}" aria-label="Gruppe">${opts(id)}</select></div>`)}).join(''):'<p class="empty">Keine Favoriten in dieser Ansicht. Tippe bei einer Tankstelle auf ☆.</p>');
 }
 async function favs(){
   drawFavs();
@@ -574,7 +628,7 @@ function show(v){
 function redraw(){pins();if(S.view==='list')list();if(S.view==='favs')favs()}
 
 function setFuel(f){
-  S.fuel=f;LS.set('fuel',f);
+  S.fuel=f;LS.set('fuel',f);syncSoon();
   $$('#fuel button').forEach(b=>b.classList.toggle('on',b.dataset.f===f));
   redraw();
 }
@@ -587,6 +641,9 @@ function openSettings(){
   $('#lit').value=S.lit?String(S.lit).replace('.',','):'';
   $('#cons').value=S.cons?String(S.cons).replace('.',','):'';
   $('#navapp').value=S.nav;
+  $('#appbg').hidden=!APP;
+  $('#wgrp').innerHTML='<option value="all">Alle Favoriten (die ersten 5)</option>'+S.groups.map(g=>`<option value="${esc(g.id)}">Gruppe ${esc(g.name)}</option>`).join('');
+  $('#wgrp').value=S.groups.some(g=>g.id===S.wgrp)?S.wgrp:'all';$('#bgint').value=String(S.bgint);
   const cur=LS.get('start','');
   $('#start').innerHTML='<option value="">Mein Standort</option>'+S.views.map(v=>`<option value="${esc(v.id)}"${v.id===cur?' selected':''}>${esc(v.name)}</option>`).join('');
   d.showModal();
@@ -614,7 +671,7 @@ $('#flt').addEventListener('close',e=>{
 });
 
 /* Daten sichern und wiederherstellen */
-const KEYS=['favs','order','groups','views','start','lit','cons','fuel','sort','open','hide','noBAB','nav','hist','traffic','tstyle','base'];
+const KEYS=['favs','order','groups','views','start','lit','cons','fuel','sort','open','hide','noBAB','nav','hist','traffic','tstyle','base','alarms','wgrp','bgint'];
 async function exportData(){
   const data={app:'spritpreise',version:1,exported:new Date().toISOString()};
   KEYS.forEach(k=>{const v=LS.get(k,null);if(v!=null)data[k]=v});
@@ -647,14 +704,16 @@ $('#dlg').addEventListener('close',e=>{
   S.key=$('#key').value.trim();LS.set('key',S.key);LS.set('start',$('#start').value);
   S.lit=num($('#lit').value);S.cons=num($('#cons').value);LS.set('lit',S.lit);LS.set('cons',S.cons);
   S.nav=$('#navapp').value;LS.set('nav',S.nav);
+  if(APP){S.wgrp=$('#wgrp').value;S.bgint=+$('#bgint').value;LS.set('wgrp',S.wgrp);LS.set('bgint',S.bgint)}
   const tt=$('#tt').value.trim(),ts=$('#tstyle').value;
   if(ts!==S.tstyle){S.tstyle=ts;LS.set('tstyle',ts);if(tt===S.tt)setTraffic(S.traffic)}
   if(tt!==S.tt){S.tt=tt;LS.set('tt',tt);setTraffic(S.traffic||!!tt);setBase(S.base)}
-  msg('');redraw();load(true);
+  msg('');redraw();load(true);syncNative();
 });
 /* Nach Rückkehr in die App veraltete Preise nachladen */
 document.addEventListener('visibilitychange',()=>{
   if(document.visibilityState!=='visible')return;
+  pullNative();
   if(S.view==='favs')favs();
   else if(lastQ&&Date.now()-lastQ.t>=300000)load();
 });
@@ -665,7 +724,7 @@ $('#open').onclick=()=>{S.open=!S.open;LS.set('open',S.open);syncFilter();redraw
 
 function toggleFav(id){
   const s=S.stations.find(x=>x.id===id)||S.favs[id];if(!s)return;
-  if(S.favs[id]){delete S.favs[id];delete S.fp[id];delete S.hist[id];S.order=S.order.filter(x=>x!==id);saveFp()}
+  if(S.favs[id]){delete S.favs[id];delete S.fp[id];delete S.hist[id];if(S.alarms[id]){delete S.alarms[id];LS.set('alarms',S.alarms)}S.order=S.order.filter(x=>x!==id);saveFp()}
   else{const{name,brand,street,houseNumber,postCode,place,lat,lng}=s;S.favs[id]={id,name,brand,street,houseNumber,postCode,place,lat,lng,g:'default'};S.order.push(id);favsFromList()}
   saveFavs();
   $$(`[data-fav="${CSS.escape(id)}"]`).forEach(x=>{x.textContent=S.favs[id]?'★':'☆';x.setAttribute('aria-pressed',!!S.favs[id])});
@@ -693,11 +752,12 @@ async function groupAction(act){
   saveFavs();drawFavs();
 }
 document.addEventListener('click',e=>{
-  const t=e.target.closest('[data-fav],[data-share],[data-hours],[data-mv],[data-g],[data-gact]');if(!t)return;
+  const t=e.target.closest('[data-fav],[data-share],[data-hours],[data-alarm],[data-mv],[data-g],[data-gact]');if(!t)return;
   const d=t.dataset;
   if(d.fav)return toggleFav(d.fav);
   if(d.share)return share(d.share);
   if(d.hours)return hours(d.hours);
+  if(d.alarm)return setAlarm(d.alarm);
   if(d.mv){
     const v=visFavs(),i=v.indexOf(d.id),j=i+ +d.mv;if(i<0||j<0||j>=v.length)return;
     const a=S.order.indexOf(v[i]),b=S.order.indexOf(v[j]);[S.order[a],S.order[b]]=[S.order[b],S.order[a]];
@@ -829,6 +889,7 @@ syncOrder();syncFilter();
 setFuel(S.fuel);
 drawViews();
 setBase(S.base);setTraffic(S.traffic);syncGmap();
+pullNative();syncNative();
 const hv=location.hash.slice(1);
 if(hv==='list'||hv==='favs')show(hv);
 if(!S.key)openSettings();

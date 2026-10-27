@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/widget_bg"
+    android:orientation="vertical"
+    android:padding="12dp">
+
+    <LinearLayout
+        android:id="@+id/head"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingBottom="6dp">
+
+        <TextView
+            android:id="@+id/title"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:singleLine="true"
+            android:text="Spritpreise"
+            android:textColor="#FFB000"
+            android:textSize="14sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/time"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="↻"
+            android:textColor="#93A0A8"
+            android:textSize="12sp" />
+    </LinearLayout>
+
+    <TextView
+        android:id="@+id/empty"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Favoriten in der App anlegen"
+        android:textColor="#93A0A8"
+        android:textSize="14sp" />
+
+    <LinearLayout android:id="@+id/r1" style="@style/WidgetRow">
+        <TextView android:id="@+id/n1" style="@style/WidgetName" />
+        <TextView android:id="@+id/p1" style="@style/WidgetPrice" />
+    </LinearLayout>
+
+    <LinearLayout android:id="@+id/r2" style="@style/WidgetRow">
+        <TextView android:id="@+id/n2" style="@style/WidgetName" />
+        <TextView android:id="@+id/p2" style="@style/WidgetPrice" />
+    </LinearLayout>
+
+    <LinearLayout android:id="@+id/r3" style="@style/WidgetRow">
+        <TextView android:id="@+id/n3" style="@style/WidgetName" />
+        <TextView android:id="@+id/p3" style="@style/WidgetPrice" />
+    </LinearLayout>
+
+    <LinearLayout android:id="@+id/r4" style="@style/WidgetRow">
+        <TextView android:id="@+id/n4" style="@style/WidgetName" />
+        <TextView android:id="@+id/p4" style="@style/WidgetPrice" />
+    </LinearLayout>
+
+    <LinearLayout android:id="@+id/r5" style="@style/WidgetRow">
+        <TextView android:id="@+id/n5" style="@style/WidgetName" />
+        <TextView android:id="@+id/p5" style="@style/WidgetPrice" />
+    </LinearLayout>
+</LinearLayout>
