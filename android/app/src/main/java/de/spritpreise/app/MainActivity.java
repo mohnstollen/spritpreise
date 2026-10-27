@@ -39,7 +39,7 @@ public class MainActivity extends Activity {
     private static final String HOST = "appassets.androidplatform.net";
     private static final String START = "https://" + HOST + "/index.html";
     private static final String LEAFLET = "/ajax/libs/leaflet/1.9.4/";
-    private static final int REQ_LOCATION = 1, REQ_OPEN = 2, REQ_SAVE = 3;
+    private static final int REQ_LOCATION = 1, REQ_OPEN = 2, REQ_SAVE = 3, REQ_NOTIFY = 4;
 
     private WebView web;
     private GeolocationPermissions.Callback geoCallback;
@@ -227,8 +227,30 @@ public class MainActivity extends Activity {
         super.onDestroy();
     }
 
-    /** Für die Web-App: Teilen und Speichern, die die WebView selbst nicht kann, und die App-Version. */
+    /** Für die Web-App: Teilen, Speichern, App-Version sowie Abgleich mit Widget und Preisalarm. */
     private class Bridge {
+        @JavascriptInterface
+        public void syncConfig(String json) {
+            try {
+                Prices.setConfig(MainActivity.this, json);
+            } catch (org.json.JSONException e) {
+                // Ungültige Konfiguration ignorieren, die alte bleibt aktiv
+            }
+        }
+
+        @JavascriptInterface
+        public String prices() {
+            return Prices.json(MainActivity.this, Prices.PRICES).toString();
+        }
+
+        @JavascriptInterface
+        public void requestNotify() {
+            if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)
+                    != PackageManager.PERMISSION_GRANTED) {
+                runOnUiThread(() -> requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, REQ_NOTIFY));
+            }
+        }
+
         @JavascriptInterface
         public String version() {
             try {
