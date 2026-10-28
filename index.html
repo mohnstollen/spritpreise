@@ -83,6 +83,8 @@ dialog menu #save{background:var(--ink);color:var(--amber);border-color:var(--in
 .rk{justify-content:center;min-width:22px;height:22px;border-radius:11px;background:var(--ink);color:var(--amber);font-weight:800;font-size:13px}
 .ropt{display:flex;gap:8px 14px;align-items:center;flex-wrap:wrap;color:var(--mut);font-size:14px}
 .ropt label{display:inline-flex;gap:6px;align-items:center}
+.pois{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;font-size:13px}
+.pois a{display:inline-flex;gap:4px;align-items:center;border:1px solid var(--line);border-radius:14px;padding:4px 10px;color:var(--fg);text-decoration:none}
 .ropt input[type=time]{padding:8px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--fg)}
 #sf input{flex:1;min-width:0;padding:9px 12px;border:1px solid #3a444c;border-radius:8px;background:#222a31;color:#fff}
 #sf button{background:var(--amber);color:#14181c;border:0;border-radius:8px;padding:0 14px;font-weight:700}
@@ -166,6 +168,9 @@ dialog h4{margin:14px 0 6px}
   <symbol id="i-flag" viewBox="0 0 24 24"><path d="M5 21V4M5 4h11l-2 4 2 4H5"/></symbol>
   <symbol id="i-side" viewBox="0 0 24 24"><path d="M4 4v16M10 12h10M17 9l3 3-3 3"/></symbol>
   <symbol id="i-detour" viewBox="0 0 24 24"><path d="M5 20V9a4 4 0 0 1 4-4h6a4 4 0 0 1 4 4v11M16 17l3 3 3-3"/></symbol>
+  <symbol id="i-burger" viewBox="0 0 24 24"><path d="M4 10a8 6 0 0 1 16 0zM3 14h18M5 17h14a2 2 0 0 1-2 3H7a2 2 0 0 1-2-3z"/></symbol>
+  <symbol id="i-cart" viewBox="0 0 24 24"><path d="M3 4h2l2.5 11h10L20 8H6.4"/><circle cx="9" cy="19" r="1.5"/><circle cx="17" cy="19" r="1.5"/></symbol>
+  <symbol id="i-bread" viewBox="0 0 24 24"><path d="M5 11a7 4 0 0 1 14 0v7a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1zM9 9l1 3M12 8.5V12M15 9l-1 3"/></symbol>
   <symbol id="i-warn" viewBox="0 0 24 24"><path d="M12 3 2 20h20L12 3zM12 10v4M12 17v.5"/></symbol>
 </svg>
 <header>
@@ -267,6 +272,16 @@ dialog h4{margin:14px 0 6px}
       </select>
     </label>
     <p class="mut">Tankstellen dürfen ihre Preise nur einmal täglich um 12 Uhr erhöhen. Bei der Route gilt eine Tankstelle als „nach 12 Uhr“, wenn Ankunft, Umweg und dieser Puffer (für Stau) über 12 Uhr hinausgehen.</p>
+    <label style="margin-top:12px">Orte in der Nähe der Routen-Tankstellen</label>
+    <label class="chk"><input type="checkbox" id="poi-ff"> Fast Food (McDonald's, Burger King, KFC)</label>
+    <label class="chk"><input type="checkbox" id="poi-sm"> Supermarkt</label>
+    <label class="chk"><input type="checkbox" id="poi-bk"> Bäcker</label>
+    <select id="poirad" aria-label="Umkreis für Orte in der Nähe">
+      <option value="500">im Umkreis von 500 m</option>
+      <option value="1000">im Umkreis von 1 km</option>
+      <option value="2000">im Umkreis von 2 km</option>
+    </select>
+    <p class="mut">Daten von OpenStreetMap. Antippen öffnet Google Maps, dort am besten die aktuellen Öffnungszeiten prüfen.</p>
     <div class="row"><button type="button" id="exp">Daten exportieren</button><button type="button" id="impb">Daten importieren</button></div>
     <div id="appbg" hidden>
       <label style="margin-top:12px">Widget zeigt
@@ -314,7 +329,7 @@ dialog h4{margin:14px 0 6px}
 <script>
 const $=s=>document.querySelector(s), $$=s=>document.querySelectorAll(s);
 const LS={get:(k,d)=>{try{return JSON.parse(localStorage.getItem(k))??d}catch{return d}},set:(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch{}}};
-const S={key:LS.get('key',''),fuel:LS.get('fuel','e5'),sort:LS.get('sort','dist'),favs:LS.get('favs',{}),fp:LS.get('fp',{}),hist:LS.get('hist',{}),wait:0,open:LS.get('open',false),grp:'all',groups:LS.get('groups',[{id:'default',name:'Allgemein'}]),order:[],views:LS.get('views',[]),lit:LS.get('lit',40),cons:LS.get('cons',7),hide:LS.get('hide',[]),noBAB:LS.get('noBAB',false),tt:LS.get('tt',''),traffic:LS.get('traffic',false),tstyle:LS.get('tstyle','all'),base:LS.get('base','osm'),alarms:LS.get('alarms',{}),wgrp:LS.get('wgrp','all'),bgint:LS.get('bgint',30),routes:LS.get('routes',[]),noonbuf:LS.get('noonbuf',15),nav:LS.get('nav',/iP(hone|ad|od)/.test(navigator.userAgent)?'apple':'google'),stations:[],me:null,view:'map'};
+const S={key:LS.get('key',''),fuel:LS.get('fuel','e5'),sort:LS.get('sort','dist'),favs:LS.get('favs',{}),fp:LS.get('fp',{}),hist:LS.get('hist',{}),wait:0,open:LS.get('open',false),grp:'all',groups:LS.get('groups',[{id:'default',name:'Allgemein'}]),order:[],views:LS.get('views',[]),lit:LS.get('lit',40),cons:LS.get('cons',7),hide:LS.get('hide',[]),noBAB:LS.get('noBAB',false),tt:LS.get('tt',''),traffic:LS.get('traffic',false),tstyle:LS.get('tstyle','all'),base:LS.get('base','osm'),alarms:LS.get('alarms',{}),wgrp:LS.get('wgrp','all'),bgint:LS.get('bgint',30),routes:LS.get('routes',[]),noonbuf:LS.get('noonbuf',15),pois:LS.get('pois',{}),poirad:LS.get('poirad',1000),nav:LS.get('nav',/iP(hone|ad|od)/.test(navigator.userAgent)?'apple':'google'),stations:[],me:null,view:'map'};
 const FN={e5:'E5',e10:'E10',diesel:'Diesel'};
 const API='https://creativecommons.tankerkoenig.de/json/';
 const FRESH=120000;
@@ -783,6 +798,54 @@ function rankRoute(){
   Object.assign(r,{out,late,rng,dep,only});
   return r;
 }
+/* Orte in der Nähe der Top-Tankstellen (OpenStreetMap über Overpass, eine Anfrage für alle).
+   Je Tankstelle und Kategorie nur der nächste Treffer; Tankstellen-Shops zählen nicht. */
+const POI={
+  ff:{ic:'burger',label:'Fast Food',q:'nwr[amenity=fast_food][~"^(brand|name)$"~"McDonald|Burger King|KFC",i]'},
+  sm:{ic:'cart',label:'Supermarkt',q:'nwr[shop=supermarket]'},
+  bk:{ic:'bread',label:'Bäcker',q:'nwr[shop=bakery]'}
+};
+const OVERPASS=['https://overpass-api.de/api/interpreter','https://overpass.kumi.systems/api/interpreter'];
+const poiCats=()=>Object.keys(POI).filter(k=>S.pois[k]);
+const poiCat=t=>t.amenity==='fast_food'?'ff':t.shop==='supermarket'?'sm':t.shop==='bakery'?'bk':null;
+async function loadPois(list){
+  const cats=poiCats(),rt=route;if(!cats.length||!rt)return;
+  const key=cats.join()+'|'+S.poirad;
+  if(rt.poiKey!==key)Object.assign(rt,{poiKey:key,pois:new Map(),poiErr:false});
+  const todo=list.filter(o=>!rt.pois.has(o.s.id));
+  if(!todo.length||rt.poiErr||rt.poiBusy)return;
+  rt.poiBusy=true;
+  const q='[out:json][timeout:25];('+todo.flatMap(o=>cats.map(c=>`${POI[c].q}(around:${S.poirad},${o.s.lat},${o.s.lng});`)).join('')+');out center tags;';
+  try{
+    let res=null;
+    for(const u of OVERPASS){
+      try{res=await fetch(u,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'data='+encodeURIComponent(q)});if(res.ok)break}catch{res=null}
+    }
+    if(!res?.ok)throw new Error('Overpass');
+    const els=(await res.json()).elements||[];
+    for(const o of todo){
+      const near={};
+      for(const e of els){
+        const t=e.tags||{},cat=poiCat(t),lat=e.lat??e.center?.lat,lng=e.lon??e.center?.lon;
+        if(!cat||!cats.includes(cat)||lat==null)continue;
+        const d=dist([o.s.lat,o.s.lng],[lat,lng])*1000;
+        if(d<=S.poirad&&(!near[cat]||d<near[cat].d))near[cat]={cat,d,lat,lng,name:t.brand||t.name||POI[cat].label,
+          addr:[[t['addr:street'],t['addr:housenumber']].filter(Boolean).join(' '),t['addr:city']].filter(Boolean).join(', ')};
+      }
+      rt.pois.set(o.s.id,Object.values(near).sort((a,b)=>a.d-b.d));
+    }
+  }catch{rt.poiErr=true}
+  rt.poiBusy=false;
+  if(route===rt)renderRoute();
+}
+const poiUrl=x=>'https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(x.addr?`${x.name}, ${x.addr}`:`${x.lat.toFixed(5)},${x.lng.toFixed(5)}`);
+function poiRow(o){
+  if(!poiCats().length)return '';
+  const pr=route.pois?.get(o.s.id);
+  if(!pr)return route.poiErr?'':'<div class="pois mut">Suche Orte in der Nähe …</div>';
+  return pr.length?`<div class="pois">${pr.map(x=>{const m=x.d<1000?`${Math.round(x.d/10)*10} m`:km(x.d/1000);
+    return `<a href="${esc(poiUrl(x))}" target="_blank" rel="noopener" aria-label="${esc(x.name)}, ${m}, in Google Maps öffnen">${ic(POI[x.cat].ic)}${esc(x.name)} · ${m}</a>`}).join('')}</div>`:'';
+}
 function renderRoute(){
   routeLayer.clearLayers();
   if(!route){$('#rsum').innerHTML='';$('#ritems').innerHTML='';return}
@@ -797,15 +860,16 @@ function renderRoute(){
   const noonInfo=ranked.dep>=nextNoon(route.t)?`<div class="facts warn">${ic('warn')}Du fährst nach 12 Uhr los. Die Preise sind von davor: Route nach 12 Uhr neu berechnen, dann stimmen sie.</div>`
     :ranked.late?`<div class="facts warn">${ic('warn')}${ranked.late} ${ranked.late===1?'Tankstelle':'Tankstellen'} nach 12 Uhr ausgeblendet (inkl. ${S.noonbuf} min Puffer).</div>`
     :risky?`<div class="facts warn">${ic('warn')}Bei ${risky} ${risky===1?'Tankstelle':'Tankstellen'} kommst du nach 12 Uhr an (inkl. ${S.noonbuf} min Puffer). Dort kann der Preis bis dahin gestiegen sein.</div>`:'';
-  $('#rsum').innerHTML=`<div class="sum">${km(route.km)} · ${dur(route.sec)} · ${ranked.length} ${ranked.length===1?'Tankstelle':'Tankstellen'} mit ${FN[S.fuel]} bis ${route.corr} km neben der Strecke${top[0]?` · günstigste <b>${fmt(top[0].p)} €</b>`:''}<div class="mut">Preise von ${hhmm(route.t)} Uhr · Abfahrt ${when(ranked.dep)}</div>${rngInfo}${noonInfo}</div><div class="row"><button data-rmap>Auf Karte zeigen</button><button class="sec" data-rclear>Route löschen</button></div>`;
+  $('#rsum').innerHTML=`<div class="sum">${km(route.km)} · ${dur(route.sec)} · ${ranked.length} ${ranked.length===1?'Tankstelle':'Tankstellen'} mit ${FN[S.fuel]} bis ${route.corr} km neben der Strecke${top[0]?` · günstigste <b>${fmt(top[0].p)} €</b>`:''}<div class="mut">Preise von ${hhmm(route.t)} Uhr · Abfahrt ${when(ranked.dep)}</div>${rngInfo}${noonInfo}${poiCats().length?`<div class="mut">${route.poiErr?'Orte in der Nähe konnten nicht geladen werden (OpenStreetMap-Dienst überlastet).':'Orte in der Nähe: © OpenStreetMap'}</div>`:''}</div><div class="row"><button data-rmap>Auf Karte zeigen</button><button class="sec" data-rclear>Route löschen</button></div>`;
   $('#ritems').innerHTML=top.map((o,i)=>{
     const sv=calc&&ranked.length>1?Math.abs(avg-o.c)<0.005?'':`<div class="sv ${avg>o.c?'g':'r'}">${eur(avg-o.c)} ${avg>o.c?'günstiger':'teurer'} als der Durchschnitt auf der Strecke, inkl. Umweg</div>`:'';
     const arr=hhmm(o.arr);
     return card(o.s,prOf(o.s),null,
       `<div class="facts"><span class="rk" aria-label="Platz ${i+1}">${i+1}</span><span aria-label="bei Kilometer ${Math.round(o.at)}">${ic('pin')}km ${Math.round(o.at)}</span><span aria-label="Fahrzeit ${dur(o.sec)}">${ic('clock')}${dur(o.sec)}</span><span aria-label="Ankunft ${arr} Uhr">${ic('flag')}${arr}</span></div>`+
       `<div class="facts mut"><span aria-label="${km(o.off)} neben der Strecke">${ic('side')}${km(o.off)} neben Strecke</span><span aria-label="Umweg ${km(o.det)}, ${o.dmin} Minuten">${ic('detour')}+${km(o.det)} · +${o.dmin} min</span></div>`+
-      (o.risk?`<div class="facts warn">${ic('warn')}Ankunft nach 12 Uhr: Preis kann bis dahin steigen</div>`:'')+sv);
+      (o.risk?`<div class="facts warn">${ic('warn')}Ankunft nach 12 Uhr: Preis kann bis dahin steigen</div>`:'')+sv+poiRow(o));
   }).join('')||`<p class="empty">${ranked.late?'Keine passende Tankstelle vor 12 Uhr erreichbar.':ranked.out?'Keine passende Tankstelle innerhalb deiner Reichweite.':'Keine passende Tankstelle entlang der Strecke.'} Größeren Abstand wählen oder Filter prüfen.</p>`;
+  loadPois(top);
 }
 $('#rf').onsubmit=e=>{e.preventDefault();calcRoute()};
 $('#rs').value=LS.get('rStart','');$('#rd').value=LS.get('rDest','');$('#rc').value=String(LS.get('rCorr',2));
@@ -882,6 +946,8 @@ function openSettings(){
   $('#cons').value=S.cons?String(S.cons).replace('.',','):'';
   $('#navapp').value=S.nav;
   $('#noonbuf').value=String(S.noonbuf);
+  for(const k in POI)$('#poi-'+k).checked=!!S.pois[k];
+  $('#poirad').value=String(S.poirad);
   $('#appbg').hidden=!APP;
   $('#wgrp').innerHTML='<option value="all">Alle Favoriten (die ersten 5)</option>'+S.groups.map(g=>`<option value="${esc(g.id)}">Gruppe ${esc(g.name)}</option>`).join('');
   $('#wgrp').value=S.groups.some(g=>g.id===S.wgrp)?S.wgrp:'all';$('#bgint').value=String(S.bgint);
@@ -912,7 +978,7 @@ $('#flt').addEventListener('close',e=>{
 });
 
 /* Daten sichern und wiederherstellen */
-const KEYS=['favs','order','groups','views','start','lit','cons','fuel','sort','open','hide','noBAB','nav','hist','traffic','tstyle','base','alarms','wgrp','bgint','routes','noonbuf'];
+const KEYS=['favs','order','groups','views','start','lit','cons','fuel','sort','open','hide','noBAB','nav','hist','traffic','tstyle','base','alarms','wgrp','bgint','routes','noonbuf','pois','poirad'];
 async function exportData(){
   const data={app:'spritpreise',version:1,exported:new Date().toISOString()};
   KEYS.forEach(k=>{const v=LS.get(k,null);if(v!=null)data[k]=v});
@@ -946,6 +1012,7 @@ $('#dlg').addEventListener('close',e=>{
   S.lit=num($('#lit').value);S.cons=num($('#cons').value);LS.set('lit',S.lit);LS.set('cons',S.cons);
   S.nav=$('#navapp').value;LS.set('nav',S.nav);
   S.noonbuf=+$('#noonbuf').value;LS.set('noonbuf',S.noonbuf);
+  S.pois={};for(const k in POI)S.pois[k]=$('#poi-'+k).checked;S.poirad=+$('#poirad').value;LS.set('pois',S.pois);LS.set('poirad',S.poirad);
   if(APP){S.wgrp=$('#wgrp').value;S.bgint=+$('#bgint').value;LS.set('wgrp',S.wgrp);LS.set('bgint',S.bgint)}
   const tt=$('#tt').value.trim(),ts=$('#tstyle').value;
   if(ts!==S.tstyle){S.tstyle=ts;LS.set('tstyle',ts);if(tt===S.tt)setTraffic(S.traffic)}
