@@ -83,8 +83,14 @@ dialog menu #save{background:var(--ink);color:var(--amber);border-color:var(--in
 .rk{justify-content:center;min-width:22px;height:22px;border-radius:11px;background:var(--ink);color:var(--amber);font-weight:800;font-size:13px}
 .ropt{display:flex;gap:8px 14px;align-items:center;flex-wrap:wrap;color:var(--mut);font-size:14px}
 .ropt label{display:inline-flex;gap:6px;align-items:center}
-.pois{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;font-size:13px}
+.pois{margin-top:4px;font-size:13px}
 .pois a{display:inline-flex;gap:4px;align-items:center;border:1px solid var(--line);border-radius:14px;padding:4px 10px;color:var(--fg);text-decoration:none}
+.prow{display:flex;gap:6px;align-items:flex-start;margin-top:6px;font-size:13px;line-height:1.45}
+.prow .ic{margin-top:2px}
+.prow a{color:var(--fg);font-weight:600;text-decoration:none;border:0;padding:0;border-radius:0;display:inline}
+.prow .pm{color:var(--mut);white-space:nowrap}
+.prow .zu,.prow a.zu{color:var(--bad)}
+.facts .g{color:var(--good);font-weight:700}.facts .r{color:var(--bad);font-weight:700}
 .pois a.zu{color:var(--bad);border-color:var(--bad)}
 .rins{position:relative}
 .ac{position:absolute;z-index:20;left:0;right:0;background:var(--card);border:1px solid var(--line);border-radius:10px;box-shadow:0 4px 16px #0006;overflow:hidden}
@@ -182,6 +188,7 @@ dialog h4{margin:14px 0 6px}
   <symbol id="i-burger" viewBox="0 0 24 24"><path d="M4 10a8 6 0 0 1 16 0zM3 14h18M5 17h14a2 2 0 0 1-2 3H7a2 2 0 0 1-2-3z"/></symbol>
   <symbol id="i-cart" viewBox="0 0 24 24"><path d="M3 4h2l2.5 11h10L20 8H6.4"/><circle cx="9" cy="19" r="1.5"/><circle cx="17" cy="19" r="1.5"/></symbol>
   <symbol id="i-bread" viewBox="0 0 24 24"><path d="M5 11a7 4 0 0 1 14 0v7a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1zM9 9l1 3M12 8.5V12M15 9l-1 3"/></symbol>
+  <symbol id="i-euro" viewBox="0 0 24 24"><path d="M17.5 6.5a6.5 6.5 0 1 0 0 11M4 10h9M4 14h9"/></symbol>
   <symbol id="i-warn" viewBox="0 0 24 24"><path d="M12 3 2 20h20L12 3zM12 10v4M12 17v.5"/></symbol>
 </svg>
 <header>
@@ -863,17 +870,19 @@ async function poisNear(s){
   const r=await ttFetch(`https://api.tomtom.com/search/2/nearbySearch/.json?key=${encodeURIComponent(S.tt)}&lat=${s.lat}&lon=${s.lng}&radius=${S.poirad}&categorySet=${cats.map(c=>POI[c].cat).join(',')}&limit=100&openingHours=nextSevenDays&language=de-DE`);
   const j=await r.json().catch(()=>({}));
   if(!r.ok)throw new Error(`HTTP ${r.status}${(t=>t?': '+t:'')(j.detailedError?.message||j.errorText||'')}`);
-  const near={};
+  const all=[];
   for(const x of j.results||[]){
     const ids=(x.poi?.categorySet||[]).map(c=>c.id),cat=cats.find(c=>ids.includes(POI[c].cat));
     if(!cat||!x.position)continue;
     const name=x.poi.brands?.[0]?.name||x.poi.name||POI[cat].label;
     if(POI[cat].brand&&!POI[cat].brand.test(name+' '+(x.poi.name||'')))continue;
     const d=x.dist??dist([s.lat,s.lng],[x.position.lat,x.position.lon])*1000;
-    if(d<=S.poirad&&(!near[cat]||d<near[cat].d))near[cat]={cat,d,name,lat:x.position.lat,lng:x.position.lon,addr:x.address?.freeformAddress||'',
-      hours:(x.poi.openingHours?.timeRanges||[]).map(t=>[ttTime(t.startTime),ttTime(t.endTime)])};
+    if(d<=S.poirad)all.push({cat,d,name,lat:x.position.lat,lng:x.position.lon,addr:x.address?.freeformAddress||'',
+      hours:(x.poi.openingHours?.timeRanges||[]).map(t=>[ttTime(t.startTime),ttTime(t.endTime)])});
   }
-  return Object.values(near).sort((a,b)=>a.d-b.d);
+  // Je Kategorie bis zu 3, nächste zuerst, gleiche Namen nur einmal
+  return cats.flatMap(c=>all.filter(x=>x.cat===c).sort((a,b)=>a.d-b.d)
+    .filter((x,i,a)=>a.findIndex(y=>y.name.toLowerCase()===x.name.toLowerCase())===i).slice(0,3));
 }
 async function loadPois(list){
   const cats=poiCats(),rt=route;if(!cats.length||!rt||!S.tt)return;
@@ -899,9 +908,15 @@ function poiOpen(x,t){
   const h=x.hours.find(([a,b])=>a<=t&&t<b);
   return h?` · bis ${hhmm(h[1])}`:' · zu bei Ankunft';
 }
+// Eine Zeile je Kategorie: „Name Entfernung, bis 20:00“, Namen öffnen Google Maps
 function poiChips(pr,t){
-  return pr.length?`<div class="pois">${pr.map(x=>{const m=x.d<1000?`${Math.round(x.d/10)*10} m`:km(x.d/1000),op=poiOpen(x,t);
-    return `<a href="${esc(poiUrl(x))}"${op.includes('zu')?' class="zu"':''} target="_blank" rel="noopener" aria-label="${esc(x.name)}, ${m}${esc(op)}, in Google Maps öffnen">${ic(POI[x.cat].ic)}${esc(x.name)} · ${m}${op}</a>`}).join('')}</div>`:'';
+  if(!pr.length)return '';
+  const row=c=>pr.filter(x=>x.cat===c).map(x=>{
+    const m=x.d<1000?`${Math.round(x.d/10)*10} m`:km(x.d/1000),op=poiOpen(x,t).replace(' · ',', '),zu=op.includes('zu')?' zu':'';
+    const nm=x.name.length>22?x.name.slice(0,21).trimEnd()+'…':x.name;
+    return `<a href="${esc(poiUrl(x))}" class="${zu}" target="_blank" rel="noopener" title="${esc(x.name)}" aria-label="${esc(x.name)}, ${m}${esc(op)}, in Google Maps öffnen">${esc(nm)}</a> <span class="pm${zu}">${m}${op}</span>`;
+  }).join(' · ');
+  return `<div class="pois">${[...new Set(pr.map(x=>x.cat))].map(c=>`<div class="prow">${ic(POI[c].ic)}<span>${row(c)}</span></div>`).join('')}</div>`;
 }
 function poiRow(o){
   if(!poiCats().length)return '';
@@ -951,9 +966,9 @@ function renderRoute(){
   const noonInfo=ranked.dep>=nextNoon(route.t)?`<div class="facts warn">${ic('warn')}Du fährst nach 12 Uhr los. Die Preise sind von davor: Route nach 12 Uhr neu berechnen, dann stimmen sie.</div>`
     :ranked.late?`<div class="facts warn">${ic('warn')}${ranked.late} ${ranked.late===1?'Tankstelle':'Tankstellen'} nach 12 Uhr ausgeblendet (inkl. ${S.noonbuf} min Puffer).</div>`
     :risky?`<div class="facts warn">${ic('warn')}Bei ${risky} ${risky===1?'Tankstelle':'Tankstellen'} kommst du nach 12 Uhr an (inkl. ${S.noonbuf} min Puffer). Dort kann der Preis bis dahin gestiegen sein.</div>`:'';
-  $('#rsum').innerHTML=`<div class="sum">${km(route.km)} · ${dur(route.sec)}${route.delay>=60?`<span class="dl ${dCls(route.delay)}"> (+${Math.round(route.delay/60)} min Stau)</span>`:''} · ${ranked.length} ${ranked.length===1?'Tankstelle':'Tankstellen'} mit ${FN[S.fuel]} bis ${route.corr} km neben der Strecke${top[0]?` · günstigste <b>${fmt(top[0].p)} €</b>`:''}<div class="mut">Preise von ${hhmm(route.t)} Uhr · Abfahrt ${when(ranked.dep)}</div>${rngInfo}${noonInfo}${poiCats().length?`<div class="mut">${route.poiErr?`Orte in der Nähe konnten nicht geladen werden (TomTom: ${esc(route.poiErr)}).`:'Orte in der Nähe und Öffnungszeiten: TomTom'}</div>`:''}</div><div class="row"><button data-rmap>Auf Karte zeigen</button><button class="sec" data-rclear>Route löschen</button></div>`;
+  $('#rsum').innerHTML=`<div class="sum">${km(route.km)} · ${dur(route.sec)}${route.delay>=60?`<span class="dl ${dCls(route.delay)}"> (+${Math.round(route.delay/60)} min Stau)</span>`:''} · ${ranked.length} ${ranked.length===1?'Tankstelle':'Tankstellen'} mit ${FN[S.fuel]} bis ${route.corr} km neben der Strecke${top[0]?` · günstigste <b>${fmt(top[0].p)} €</b>`:''}<div class="mut">Preise von ${hhmm(route.t)} Uhr · Abfahrt ${when(ranked.dep)}</div>${calcOn()&&ranked.length>1?`<div class="mut">Vergleich: mittlere Kosten aller Tankstellen der Strecke (Median) für ${String(S.lit).replace('.',',')} l, inkl. Umweg</div>`:''}${rngInfo}${noonInfo}${poiCats().length?`<div class="mut">${route.poiErr?`Orte in der Nähe konnten nicht geladen werden (TomTom: ${esc(route.poiErr)}).`:'Orte in der Nähe und Öffnungszeiten: TomTom'}</div>`:''}</div><div class="row"><button data-rmap>Auf Karte zeigen</button><button class="sec" data-rclear>Route löschen</button></div>`;
   $('#ritems').innerHTML=top.map((o,i)=>{
-    const sv=calc&&ranked.length>1?Math.abs(mid-o.c)<0.005?'':`<div class="sv ${mid>o.c?'g':'r'}">${eur(mid-o.c)} ${mid>o.c?'günstiger':'teurer'} als der Median der Strecke, inkl. Umweg</div>`:'';
+    const x=mid-o.c,sv=calc&&ranked.length>1&&Math.abs(x)>=0.005?`<div class="facts"><span class="${x>0?'g':'r'}" aria-label="${eur(x)} ${x>0?'günstiger':'teurer'} als der Median der Strecke, inklusive Umweg">${ic('euro')}${x>0?'−':'+'}${eur(x)} ggü. Median</span><span class="mut">inkl. Umweg</span></div>`:'';
     const arr=hhmm(o.arr);
     return card(o.s,prOf(o.s),null,
       `<div class="facts"><span class="rk" aria-label="Platz ${i+1}">${i+1}</span><span aria-label="bei Kilometer ${Math.round(o.at)}">${ic('pin')}km ${Math.round(o.at)}</span><span aria-label="Fahrzeit ${dur(o.sec)}${o.delay>=60?`, davon ${Math.round(o.delay/60)} Minuten Stau`:''}">${ic('clock')}${dur(o.sec)}${o.delay==null?'':dTxt(o.delay)}</span><span class="${o.delay==null?'':dCls(o.delay)}" aria-label="Ankunft ${arr} Uhr">${ic('flag')}${arr}</span></div>`+
