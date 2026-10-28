@@ -540,7 +540,7 @@ function pins(){
   vs.forEach(s=>{
     const p=prOf(s),x=p[S.fuel],c=x==null?'':x<=lo?'g':x>=hi?'r':'';
     const m=L.marker([s.lat,s.lng],{icon:L.divIcon({className:'',iconSize:[0,0],html:`<div class="pin ${c}">${fmt(x)}</div>`})})
-      .bindPopup(card(s,p,null,stand),{minWidth:250}).addTo(layer);
+      .bindPopup(card(s,p,null,stand+(S.tt?'<div class="pext"></div>':'')),{minWidth:250,autoPanPaddingTopLeft:[10,64]}).on('popupopen',e=>popupExtra(s,e.popup)).addTo(layer);
     m.getElement()?.setAttribute('aria-label',`${s.brand||s.name}, ${x==null?'kein Preis':x.toFixed(3).replace('.',',')+' Euro'}`);
     marks.push({m,x});
   });
@@ -857,6 +857,24 @@ const POI={
 };
 const poiCats=()=>Object.keys(POI).filter(k=>S.pois[k]);
 const ttTime=t=>{const [y,m,d]=t.date.split('-').map(Number);return new Date(y,m-1,d,t.hour,t.minute).getTime()};
+// Je Kategorie der nächste Ort im Umkreis einer Tankstelle, mit Öffnungszeiten der nächsten 7 Tage
+async function poisNear(s){
+  const cats=poiCats();
+  const r=await ttFetch(`https://api.tomtom.com/search/2/nearbySearch/.json?key=${encodeURIComponent(S.tt)}&lat=${s.lat}&lon=${s.lng}&radius=${S.poirad}&categorySet=${cats.map(c=>POI[c].cat).join(',')}&limit=100&openingHours=nextSevenDays&language=de-DE`);
+  const j=await r.json().catch(()=>({}));
+  if(!r.ok)throw new Error(`HTTP ${r.status}${(t=>t?': '+t:'')(j.detailedError?.message||j.errorText||'')}`);
+  const near={};
+  for(const x of j.results||[]){
+    const ids=(x.poi?.categorySet||[]).map(c=>c.id),cat=cats.find(c=>ids.includes(POI[c].cat));
+    if(!cat||!x.position)continue;
+    const name=x.poi.brands?.[0]?.name||x.poi.name||POI[cat].label;
+    if(POI[cat].brand&&!POI[cat].brand.test(name+' '+(x.poi.name||'')))continue;
+    const d=x.dist??dist([s.lat,s.lng],[x.position.lat,x.position.lon])*1000;
+    if(d<=S.poirad&&(!near[cat]||d<near[cat].d))near[cat]={cat,d,name,lat:x.position.lat,lng:x.position.lon,addr:x.address?.freeformAddress||'',
+      hours:(x.poi.openingHours?.timeRanges||[]).map(t=>[ttTime(t.startTime),ttTime(t.endTime)])};
+  }
+  return Object.values(near).sort((a,b)=>a.d-b.d);
+}
 async function loadPois(list){
   const cats=poiCats(),rt=route;if(!cats.length||!rt||!S.tt)return;
   const key=cats.join()+'|'+S.poirad;
@@ -866,20 +884,7 @@ async function loadPois(list){
   rt.poiBusy=true;
   try{
     for(const o of todo){
-      const r=await ttFetch(`https://api.tomtom.com/search/2/nearbySearch/.json?key=${encodeURIComponent(S.tt)}&lat=${o.s.lat}&lon=${o.s.lng}&radius=${S.poirad}&categorySet=${cats.map(c=>POI[c].cat).join(',')}&limit=100&openingHours=nextSevenDays&language=de-DE`);
-      const j=await r.json().catch(()=>({}));
-      if(!r.ok)throw new Error(`HTTP ${r.status}${(t=>t?': '+t:'')(j.detailedError?.message||j.errorText||'')}`);
-      const near={};
-      for(const x of j.results||[]){
-        const ids=(x.poi?.categorySet||[]).map(c=>c.id),cat=cats.find(c=>ids.includes(POI[c].cat));
-        if(!cat||!x.position)continue;
-        const name=x.poi.brands?.[0]?.name||x.poi.name||POI[cat].label;
-        if(POI[cat].brand&&!POI[cat].brand.test(name+' '+(x.poi.name||'')))continue;
-        const d=x.dist??dist([o.s.lat,o.s.lng],[x.position.lat,x.position.lon])*1000;
-        if(d<=S.poirad&&(!near[cat]||d<near[cat].d))near[cat]={cat,d,name,lat:x.position.lat,lng:x.position.lon,addr:x.address?.freeformAddress||'',
-          hours:(x.poi.openingHours?.timeRanges||[]).map(t=>[ttTime(t.startTime),ttTime(t.endTime)])};
-      }
-      rt.pois.set(o.s.id,Object.values(near).sort((a,b)=>a.d-b.d));
+      rt.pois.set(o.s.id,await poisNear(o.s));
       if(route===rt)renderRoute();
       await new Promise(res=>setTimeout(res,150));
     }
@@ -894,12 +899,43 @@ function poiOpen(x,t){
   const h=x.hours.find(([a,b])=>a<=t&&t<b);
   return h?` · bis ${hhmm(h[1])}`:' · zu bei Ankunft';
 }
+function poiChips(pr,t){
+  return pr.length?`<div class="pois">${pr.map(x=>{const m=x.d<1000?`${Math.round(x.d/10)*10} m`:km(x.d/1000),op=poiOpen(x,t);
+    return `<a href="${esc(poiUrl(x))}"${op.includes('zu')?' class="zu"':''} target="_blank" rel="noopener" aria-label="${esc(x.name)}, ${m}${esc(op)}, in Google Maps öffnen">${ic(POI[x.cat].ic)}${esc(x.name)} · ${m}${op}</a>`}).join('')}</div>`:'';
+}
 function poiRow(o){
   if(!poiCats().length)return '';
   const pr=route.pois?.get(o.s.id);
   if(!pr)return route.poiErr?'':'<div class="pois mut">Suche Orte in der Nähe …</div>';
-  return pr.length?`<div class="pois">${pr.map(x=>{const m=x.d<1000?`${Math.round(x.d/10)*10} m`:km(x.d/1000),op=poiOpen(x,o.arr);
-    return `<a href="${esc(poiUrl(x))}"${op.includes('zu')?' class="zu"':''} target="_blank" rel="noopener" aria-label="${esc(x.name)}, ${m}${esc(op)}, in Google Maps öffnen">${ic(POI[x.cat].ic)}${esc(x.name)} · ${m}${op}</a>`}).join('')}</div>`:'';
+  return poiChips(pr,o.arr);
+}
+/* Popup auf der Karte: Fahrzeit und Ankunft vom Standort (TomTom, mit Verkehr) und Orte in der Nähe.
+   Je Station und Standort 5 Minuten zwischengespeichert, damit wiederholtes Antippen nichts kostet. */
+const popC=new Map(),popBase=new WeakMap();
+const sumTxt=e=>e instanceof TypeError?'keine Verbindung':e.message;
+async function popupExtra(s,pop){
+  if(!S.tt)return;
+  if(!popBase.has(pop))popBase.set(pop,pop.getContent());
+  // Leaflet zeichnet Popups aus dem Inhaltstext neu, daher immer den ganzen Inhalt mit gefülltem Platzhalter setzen
+  const put=h=>pop.setContent(popBase.get(pop).replace('<div class="pext"></div>',`<div class="pext">${h}</div>`));
+  const key=[s.id,S.me?S.me.map(v=>v.toFixed(3)).join():'',poiCats().join(),S.poirad].join('|');
+  let c=popC.get(key);
+  if(!c||Date.now()-c.t>3e5){
+    put('<div class="facts mut">Berechne Fahrzeit …</div>');
+    c={t:Date.now()};
+    [c.drive,c.pois]=await Promise.all([
+      S.me?ttFetch(`https://api.tomtom.com/routing/1/calculateRoute/${S.me[0]},${S.me[1]}:${s.lat},${s.lng}/json?key=${encodeURIComponent(S.tt)}&travelMode=car&traffic=true`)
+        .then(async r=>{if(!r.ok)throw new Error('HTTP '+r.status);return (await r.json()).routes[0].summary}).catch(e=>({err:sumTxt(e)})):null,
+      poiCats().length?poisNear(s).catch(e=>({err:sumTxt(e)})):[]
+    ]);
+    popC.set(key,c);
+  }
+  if(!pop.isOpen())return;
+  const d=c.drive,arr=d&&!d.err?c.t+d.travelTimeInSeconds*1000:Date.now(),dl=d?.trafficDelayInSeconds||0;
+  put((!S.me?'<div class="facts mut">Fahrzeit: Standort unbekannt, ◎ antippen</div>'
+    :d.err?`<div class="facts mut">Fahrzeit nicht verfügbar (TomTom: ${esc(d.err)})</div>`
+    :`<div class="facts"><span aria-label="${km(d.lengthInMeters/1000)} Fahrt">${ic('pin')}${km(d.lengthInMeters/1000)}</span><span aria-label="Fahrzeit ${dur(d.travelTimeInSeconds)}">${ic('clock')}${dur(d.travelTimeInSeconds)}${dTxt(dl)}</span><span class="${dCls(dl)}" aria-label="Ankunft ${hhmm(arr)} Uhr">${ic('flag')}${hhmm(arr)}</span></div>`)
+    +(c.pois.err?`<div class="facts mut">Orte in der Nähe nicht verfügbar (TomTom: ${esc(c.pois.err)})</div>`:poiChips(c.pois,arr)));
 }
 function renderRoute(){
   routeLayer.clearLayers();
@@ -908,7 +944,7 @@ function renderRoute(){
   const mid=ranked.length?median(ranked.map(o=>o.c)):0;
   const line=L.polyline(route.pts,{color:'#2f7bf5',weight:5,opacity:.8}).addTo(routeLayer);
   for(const [p,c] of [[[route.a.lat,route.a.lng],'#2f7bf5'],[[route.b.lat,route.b.lng],'#d64545']])L.circleMarker(p,{radius:8,color:'#fff',weight:3,fillColor:c,fillOpacity:1}).addTo(routeLayer);
-  top.forEach((o,i)=>L.marker([o.s.lat,o.s.lng],{zIndexOffset:2000-i,icon:L.divIcon({className:'',iconSize:[0,0],html:`<div class="pin g">${i+1}. ${fmt(o.p)}</div>`})}).bindPopup(card(o.s,prOf(o.s),null),{minWidth:250}).addTo(routeLayer));
+  top.forEach((o,i)=>L.marker([o.s.lat,o.s.lng],{zIndexOffset:2000-i,icon:L.divIcon({className:'',iconSize:[0,0],html:`<div class="pin g">${i+1}. ${fmt(o.p)}</div>`})}).bindPopup(card(o.s,prOf(o.s),null),{minWidth:250,autoPanPaddingTopLeft:[10,64]}).addTo(routeLayer));
   route.bounds=line.getBounds();
   const rngInfo=ranked.rng?`<div class="sv ${ranked.rng<route.km?'r':'mut'}">${ranked.rng<route.km?`Deine Reichweite endet bei km ${Math.round(ranked.rng)}, das Ziel liegt dahinter: unterwegs tanken.`:'Das Ziel liegt innerhalb deiner Reichweite.'}${ranked.out?` ${ranked.out} ${ranked.out===1?'Tankstelle':'Tankstellen'} dahinter ausgeblendet.`:''}</div>`:'';
   const risky=ranked.filter(o=>o.risk).length;
