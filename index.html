@@ -157,6 +157,13 @@ dialog select{display:block;width:100%;margin-top:6px;padding:10px;border:1px so
 .d-g{color:var(--good)}.d-y{color:#b26b00}.d-r{color:var(--bad)}
 @media(prefers-color-scheme:dark){.d-y{color:var(--amber)}}
 .dl{font-weight:700}
+.inc{width:24px;height:24px;border-radius:50%;border:2px solid #fff;color:#fff;display:flex;align-items:center;justify-content:center;box-shadow:0 1px 4px #0007;transform:translate(-50%,-50%)}
+.inc .ic{width:14px;height:14px}
+.incs{margin-top:8px;font-size:14px}
+.irow{display:flex;gap:8px;align-items:center;margin-top:4px}
+.irow .inc{transform:none;width:20px;height:20px;border-width:1px;box-shadow:none;flex:none}
+.irow .inc .ic{width:12px;height:12px}
+.incs summary{color:var(--mut);margin-top:4px;cursor:pointer}
 #upd{position:absolute;z-index:1300;top:100px;left:50%;transform:translateX(-50%);display:flex;gap:10px;align-items:center;background:var(--ink);color:#fff;padding:6px 6px 6px 14px;border-radius:20px;font-size:14px;white-space:nowrap;box-shadow:0 2px 8px #0006}
 #upd button{background:var(--amber);color:#14181c;border:0;border-radius:14px;padding:4px 12px;font-weight:700}
 dialog menu.rv{flex-direction:row-reverse;justify-content:flex-start}
@@ -190,6 +197,10 @@ dialog h4{margin:14px 0 6px}
   <symbol id="i-bread" viewBox="0 0 24 24"><path d="M5 11a7 4 0 0 1 14 0v7a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1zM9 9l1 3M12 8.5V12M15 9l-1 3"/></symbol>
   <symbol id="i-euro" viewBox="0 0 24 24"><path d="M17.5 6.5a6.5 6.5 0 1 0 0 11M4 10h9M4 14h9"/></symbol>
   <symbol id="i-warn" viewBox="0 0 24 24"><path d="M12 3 2 20h20L12 3zM12 10v4M12 17v.5"/></symbol>
+  <symbol id="i-crash" viewBox="0 0 24 24"><path d="M12 2v5M4.5 5.5 8 9M19.5 5.5 16 9M3 13h4M17 13h4M6 21l2-6h8l2 6M5 21h14"/></symbol>
+  <symbol id="i-cone" viewBox="0 0 24 24"><path d="M10 3h4l5 16H5L10 3zM8 10h8M6.5 15h11M3 21h18"/></symbol>
+  <symbol id="i-block" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M7 12h10"/></symbol>
+  <symbol id="i-car" viewBox="0 0 24 24"><path d="M5 16V11l2-5h10l2 5v5M3 16h18v3H3zM5 11h14M7 19v2M17 19v2"/></symbol>
 </svg>
 <header>
   <div class="seg" id="fuel" role="group" aria-label="Spritsorte">
@@ -396,23 +407,27 @@ const layer=L.layerGroup().addTo(map);
    Der Zeitstempel im URL erzwingt alle 5 Minuten frische Kacheln. */
 const DARK=matchMedia('(prefers-color-scheme: dark)');
 // Fehlgeschlagene Kachel einmal direkt abfragen, um TomToms Begründung (Status und Text) anzeigen zu können; '' = war nur vorübergehend
-/* TomTom-Kontingent: zählt nur, was diese App anfragt (frei: 2.500 Anfragen und 50.000 Kacheln pro Tag).
-   TomTom bietet keine Abfrage des Reststands; die echten Zahlen stehen im Dashboard auf developer.tomtom.com. */
-const QMAX={api:2500,tile:50000};
-const utcDay=()=>new Date().toISOString().slice(0,10);
-let Q=LS.get('ttq',{});if(Q.day!==utcDay())Q={day:utcDay(),api:0,tile:0,warn:{}};
+/* TomTom-Kontingent: zählt je API, was diese App in diesem Monat anfragt (Freikontingent pro Kalendermonat).
+   TomTom bietet keine Abfrage des Reststands; die echten Zahlen stehen im Dashboard auf developer.tomtom.com.
+   Für Verkehrsmeldungen ist das Freikontingent nicht bekannt, daher vorsichtig 2.500 angenommen. */
+const QAPI={search:['Suche',2500],route:['Routen',20000],inc:['Verkehrsmeldungen',2500],traffic:['Verkehrskacheln',200000],map:['Luftbildkacheln',200000]};
+const utcMon=()=>new Date().toISOString().slice(0,7);
+const qNew=()=>({mon:utcMon(),n:{},warn:{}});
+let Q=LS.get('ttq',{});if(Q.mon!==utcMon())Q=qNew();
 let qT;
 function qCount(kind,n=1){
-  if(Q.day!==utcDay())Q={day:utcDay(),api:0,tile:0,warn:{}};
-  Q[kind]+=n;clearTimeout(qT);qT=setTimeout(()=>LS.set('ttq',Q),1000);
-  if(Q[kind]>=QMAX[kind]*0.8&&!Q.warn[kind]){Q.warn[kind]=1;LS.set('ttq',Q);qShow(`TomTom: heute schon ${Q[kind].toLocaleString('de-DE')} von ${QMAX[kind].toLocaleString('de-DE')} ${kind==='api'?'Anfragen':'Kacheln'} verbraucht (nur diese App). Ab ${QMAX[kind].toLocaleString('de-DE')} sperrt TomTom bis morgen.`)}
+  if(Q.mon!==utcMon())Q=qNew();
+  const v=Q.n[kind]=(Q.n[kind]||0)+n,[name,max]=QAPI[kind];clearTimeout(qT);qT=setTimeout(()=>LS.set('ttq',Q),1000);
+  if(v>=max*0.8&&!Q.warn[kind]){Q.warn[kind]=1;LS.set('ttq',Q);qShow(`TomTom ${name}: diesen Monat schon ${v.toLocaleString('de-DE')} von ${max.toLocaleString('de-DE')} frei (nur diese App gezählt, Stand im Dashboard prüfen). Danach sperrt TomTom bis zum Monatsersten.`)}
 }
+const qKind=u=>u.includes('/routing/')?'route':u.includes('/incidentDetails')?'inc':'search';
+const qTxt=()=>(Q.mon!==utcMon()&&(Q=qNew()),Object.entries(QAPI).map(([k,[n,m]])=>`${n} ${(Q.n[k]||0).toLocaleString('de-DE')} / ${m.toLocaleString('de-DE')}`).join(' · '));
 function qShow(t){$('#qtxt').textContent=t;$('#qbar').hidden=false}
 $('#qx').onclick=()=>{$('#qbar').hidden=true};
-const qLimit=()=>qShow('TomTom-Tageslimit erreicht: Route, Orte, Verkehr und Luftbild gehen erst morgen wieder.');
-// Alle TomTom-Anfragen außer Kacheln laufen hierüber: zählen und das Tageslimit (HTTP 429) erkennen
+const qLimit=()=>qShow('TomTom meldet zu viele Anfragen (HTTP 429): entweder kurz zu viele auf einmal oder das Monatskontingent ist aufgebraucht. Stand im Dashboard auf developer.tomtom.com prüfen.');
+// Alle TomTom-Anfragen außer Kacheln laufen hierüber: je API zählen und HTTP 429 erkennen
 async function ttFetch(url){
-  qCount('api');
+  qCount(qKind(url));
   const r=await fetch(url);
   if(r.status===429)qLimit();
   return r;
@@ -428,9 +443,11 @@ function setTraffic(on){
   S.traffic=on;LS.set('traffic',on);$('#trf').setAttribute('aria-pressed',on&&!!S.tt);
   traffic?.remove();traffic=null;trafficErr=false;trafficWhy='';$('#trf').textContent='Verkehr';
   $('#map').classList.toggle('trf',on&&!!S.tt);
+  incReset();
   if(!on||!S.tt)return;
+  setTimeout(incLoad,0);
   trafficT=Math.floor(Date.now()/3e5);
-  traffic=L.tileLayer(trafficUrl(),{pane:'traffic',maxZoom:19,attribution:'Verkehr © TomTom'}).on('tileloadstart',()=>qCount('tile'))
+  traffic=L.tileLayer(trafficUrl(),{pane:'traffic',maxZoom:19,attribution:'Verkehr © TomTom'}).on('tileloadstart',()=>qCount('traffic'))
     .on('tileerror',e=>{
       if(trafficErr||!navigator.onLine)return;
       trafficErr=true;
@@ -440,10 +457,55 @@ function setTraffic(on){
 }
 function refreshTraffic(){
   const t=Math.floor(Date.now()/3e5);
-  if(traffic&&t!==trafficT&&document.visibilityState==='visible'){trafficT=t;traffic.setUrl(trafficUrl())}
+  if(traffic&&t!==trafficT&&document.visibilityState==='visible'){trafficT=t;traffic.setUrl(trafficUrl());incLoad()}
 }
 setInterval(refreshTraffic,60000);
 DARK.addEventListener?.('change',()=>traffic?.setUrl(trafficUrl()));
+/* Unfälle, Baustellen und Sperrungen auf der Karte, solange der Verkehr eingeblendet ist (TomTom Incident Details).
+   Erst ab Zoom 10 (wie die Preise erst beim Hineinzoomen), weil TomTom höchstens 10.000 km² je Abfrage erlaubt; ein etwas größerer Ausschnitt wird
+   5 Minuten wiederverwendet, damit Verschieben nicht jedes Mal eine Anfrage kostet. Staus zeigt schon die Verkehrslage. */
+const incLayer=L.layerGroup().addTo(map);
+let incCov=null,incT,incErr='',incN=0;
+const INC_FIELDS='{incidents{type,geometry{type,coordinates},properties{iconCategory,magnitudeOfDelay,events{description,code},startTime,endTime,from,to,length,delay,roadNumbers}}}';
+const kmArea=b=>(b.getNorth()-b.getSouth())*111.2*(b.getEast()-b.getWest())*111.2*Math.cos(b.getCenter().lat*Math.PI/180);
+function incReset(){incN++;incLayer.clearLayers();incCov=null;incErr=''}
+function incPop(pr,k,t0){
+  const t=t0||INC[k][0],d=(pr.events||[]).map(e=>e.description).filter(Boolean).join(', '),end=pr.endTime&&new Date(pr.endTime);
+  const meta=[pr.length>=100?km(pr.length/1000):'',pr.delay>=60?`+${Math.round(pr.delay/60)} min`:'',
+    end&&!isNaN(end)?`bis ${end.toLocaleString('de-DE',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}`:''].filter(Boolean).join(' · ');
+  return `<b>${esc(t)}</b>${pr.roadNumbers?.length?` · ${esc(pr.roadNumbers.join(', '))}`:''}`
+    +(d&&d.toLowerCase()!==t.toLowerCase()?`<br>${esc(d)}`:'')
+    +(pr.from||pr.to?`<br>${esc([pr.from,pr.to].filter(Boolean).join(' → '))}`:'')
+    +(meta?`<br><span class="mut">${esc(meta)}</span>`:'');
+}
+async function incLoad(){
+  if(!S.traffic||!S.tt||incErr||!navigator.onLine)return;
+  const v=map.getBounds();
+  if(map.getZoom()<10||kmArea(v)>9500){
+    map.removeLayer(incLayer);return;
+  }
+  map.addLayer(incLayer);
+  if(incCov&&incCov.b.contains(v)&&Date.now()-incCov.t<3e5)return;
+  let b=v.pad(0.5);if(kmArea(b)>9500)b=v.pad(0.2);if(kmArea(b)>9500)b=v;
+  const n=++incN;
+  try{
+    const r=await ttFetch(`https://api.tomtom.com/traffic/services/5/incidentDetails?key=${encodeURIComponent(S.tt)}&bbox=${[b.getWest(),b.getSouth(),b.getEast(),b.getNorth()].map(x=>x.toFixed(5)).join()}&fields=${encodeURIComponent(INC_FIELDS)}&language=de-DE&timeValidityFilter=present`);
+    const j=await r.json().catch(()=>({}));
+    if(!r.ok)throw new Error(`HTTP ${r.status}${(t=>t?': '+t:'')(j.detailedError?.message||j.error?.description||'')}`);
+    if(n!==incN)return;
+    incCov={b,t:Date.now()};incLayer.clearLayers();
+    for(const x of j.incidents||[]){
+      const pr=x.properties||{},[k,t0]=ICAT[pr.iconCategory]||[],g=x.geometry;
+      if(!k||k==='jam')continue;
+      const c=g?.type==='Point'?g.coordinates:g?.coordinates?.[0];if(!c)continue;
+      L.marker([c[1],c[0]],{icon:incIcon(k),zIndexOffset:-1000,keyboard:false}).bindPopup(incPop(pr,k,t0),{maxWidth:260}).addTo(incLayer);
+    }
+  }catch(e){
+    if(n!==incN||e instanceof TypeError)return;
+    incErr=e.message;if(!e.message.startsWith('HTTP 429'))qShow(`Unfälle und Baustellen nicht verfügbar (TomTom: ${incErr}). Verkehrslage und Route funktionieren weiter.`);
+  }
+}
+map.on('moveend',()=>{clearTimeout(incT);incT=setTimeout(incLoad,800)});
 $('#trf').onclick=async()=>{
   if(S.tt&&trafficWhy){
     if(await ask({title:'Verkehrslage nicht verfügbar',text:`TomTom antwortet: ${trafficWhy}. Prüfe den TomTom-Key in den Einstellungen und ob er unter developer.tomtom.com aktiv ist.`,ok:'Ausschalten',cancel:'Schließen'}))setTraffic(false);
@@ -463,7 +525,7 @@ function setBase(b){
   $('#sat').textContent='Luftbild';$('#sat').setAttribute('aria-pressed',on);$('#map').classList.toggle('sat',on);
   if(!on){if(!map.hasLayer(osm))osm.addTo(map);return}
   osm.remove();
-  sat=L.tileLayer(satUrl(),{maxZoom:19,attribution:'Luftbild © TomTom, Maxar'}).on('tileloadstart',()=>qCount('tile'))
+  sat=L.tileLayer(satUrl(),{maxZoom:19,attribution:'Luftbild © TomTom, Maxar'}).on('tileloadstart',()=>qCount('map'))
     .on('tileerror',e=>{
       if(satErr||!navigator.onLine)return;
       satErr=true;
@@ -786,8 +848,25 @@ async function tomtomRoute(a,b){
   const cum=along(pts),sc=km/(cum[cum.length-1]||1),at=i=>cum[Math.min(Math.max(i,0),cum.length-1)]*sc;
   const jams=(rt.sections||[]).filter(x=>x.sectionType==='TRAFFIC'&&x.delayInSeconds>0).map(x=>[at(x.startPointIndex),at(x.endPointIndex),x.delayInSeconds]);
   const delay=rt.summary.trafficDelayInSeconds||0;
-  return{pts,km,sec,prof,jams,delay,delayKnown:jams.length>0||delay<60};
+  // Meldungen (Unfall, Baustelle, Sperrung …) aus denselben Abschnitten, mit Ursache nach TPEG-TEC
+  const incs=(rt.sections||[]).filter(x=>x.sectionType==='TRAFFIC').map(x=>({a:at(x.startPointIndex),b:at(x.endPointIndex),
+    p:pts[Math.min(Math.max(x.startPointIndex,0),pts.length-1)],...incKind(x.simpleCategory,x.tec?.causes?.[0]?.mainCauseCode),delay:x.delayInSeconds||0}))
+    .filter(x=>x.k!=='jam'||x.delay>=60).sort((x,y)=>x.a-y.a);
+  return{pts,km,sec,prof,jams,delay,delayKnown:jams.length>0||delay<60,incs};
 }
+/* Verkehrsmeldungen: Art aus der Routenberechnung (simpleCategory + TEC-Ursache) bzw. aus den Incident Details (iconCategory).
+   k bestimmt Icon und Farbe der Markierung. */
+const INC={acc:['Unfall','crash','#d64545'],closed:['Sperrung','block','#d64545'],work:['Baustelle','cone','#e08a00'],
+  lane:['Fahrstreifen gesperrt','cone','#e08a00'],haz:['Gefahr','warn','#e08a00'],jam:['Stau','car','#b26b00'],other:['Behinderung','warn','#888']};
+const TEC={2:['acc'],3:['work'],4:['lane','Fahrstreifen verengt'],5:['closed'],6:['haz','Glätte'],7:['haz','Aquaplaning'],8:['haz','Brand'],
+  10:['haz','Gegenstand auf der Fahrbahn'],11:['haz','Tiere auf der Fahrbahn'],12:['haz','Personen auf der Fahrbahn'],13:['haz','Pannenfahrzeug'],
+  14:['acc','Falschfahrer'],15:['haz','Bergungsarbeiten'],17:['haz','Unwetter'],18:['haz','Sichtbehinderung'],25:['haz','Stauende']};
+function incKind(cat,cause){
+  const [k,t]=TEC[cause]||(cat==='ROAD_CLOSURE'?['closed']:cat==='ROAD_WORK'?['work']:cat==='JAM'||cause===1?['jam']:['other']);
+  return{k,t:t||INC[k][0]};
+}
+const ICAT={1:['acc'],2:['haz','Nebel'],3:['haz'],4:['haz','Starkregen'],5:['haz','Glätte'],6:['jam'],7:['lane'],8:['closed'],9:['work'],10:['haz','Sturm'],11:['haz','Überflutung'],14:['haz','Pannenfahrzeug']};
+const incIcon=k=>L.divIcon({className:'',iconSize:[0,0],html:`<div class="inc" style="background:${INC[k][2]}">${ic(INC[k][1])}</div>`});
 // Stauverzögerung bis km d (anteilig, wenn d mitten in einem Stauabschnitt liegt)
 function delayAt(d){
   return route.jams.reduce((t,[a,b,s])=>t+(d>=b?s:d>a?s*(d-a)/(b-a||1):0),0);
@@ -864,9 +943,21 @@ const POI={
 };
 const poiCats=()=>Object.keys(POI).filter(k=>S.pois[k]);
 const ttTime=t=>{const [y,m,d]=t.date.split('-').map(Number);return new Date(y,m-1,d,t.hour,t.minute).getTime()};
-// Je Kategorie der nächste Ort im Umkreis einer Tankstelle, mit Öffnungszeiten der nächsten 7 Tage
+/* Orte in der Nähe 14 Tage je Tankstelle, Kategorien und Umkreis speichern: Supermärkte ziehen selten um,
+   und die Suche ist das knappste TomTom-Kontingent. Höchstens 300 Tankstellen, die ältesten fliegen raus. */
+const POI_TTL=14*864e5;
+let poiC=LS.get('poic',{});
+function poiCache(k,v){
+  const now=Date.now();
+  if(v===undefined){const e=poiC[k];return e&&now-e.t<POI_TTL?e.l:null}
+  poiC[k]={t:now,l:v};
+  poiC=Object.fromEntries(Object.entries(poiC).filter(([,e])=>now-e.t<POI_TTL).sort((a,b)=>b[1].t-a[1].t).slice(0,300));
+  try{LS.set('poic',poiC)}catch{}
+}
+// Je Kategorie bis zu 3 Orte im Umkreis einer Tankstelle, mit Öffnungszeiten der nächsten 7 Tage
 async function poisNear(s){
-  const cats=poiCats();
+  const cats=poiCats(),ck=[s.id||`${s.lat.toFixed(4)},${s.lng.toFixed(4)}`,cats.join(),S.poirad].join('|'),hit=poiCache(ck);
+  if(hit)return hit;
   const r=await ttFetch(`https://api.tomtom.com/search/2/nearbySearch/.json?key=${encodeURIComponent(S.tt)}&lat=${s.lat}&lon=${s.lng}&radius=${S.poirad}&categorySet=${cats.map(c=>POI[c].cat).join(',')}&limit=100&openingHours=nextSevenDays&language=de-DE`);
   const j=await r.json().catch(()=>({}));
   if(!r.ok)throw new Error(`HTTP ${r.status}${(t=>t?': '+t:'')(j.detailedError?.message||j.errorText||'')}`);
@@ -881,8 +972,10 @@ async function poisNear(s){
       hours:(x.poi.openingHours?.timeRanges||[]).map(t=>[ttTime(t.startTime),ttTime(t.endTime)])});
   }
   // Je Kategorie bis zu 3, nächste zuerst, gleiche Namen nur einmal
-  return cats.flatMap(c=>all.filter(x=>x.cat===c).sort((a,b)=>a.d-b.d)
+  const res=cats.flatMap(c=>all.filter(x=>x.cat===c).sort((a,b)=>a.d-b.d)
     .filter((x,i,a)=>a.findIndex(y=>y.name.toLowerCase()===x.name.toLowerCase())===i).slice(0,3));
+  poiCache(ck,res);
+  return res;
 }
 async function loadPois(list){
   const cats=poiCats(),rt=route;if(!cats.length||!rt||!S.tt)return;
@@ -903,10 +996,14 @@ async function loadPois(list){
 }
 const poiUrl=x=>'https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(x.addr?`${x.name}, ${x.addr}`:`${x.lat.toFixed(5)},${x.lng.toFixed(5)}`);
 // Geöffnet bei Ankunft an der Tankstelle? Ohne Angaben von TomTom bleibt es offen.
+// Die Zeiten gelten 7 Tage ab Abfrage; danach wird derselbe Wochentag der Vorwochen genommen (Zwischenspeicher bis 14 Tage).
 function poiOpen(x,t){
   if(!x.hours.length)return '';
-  const h=x.hours.find(([a,b])=>a<=t&&t<b);
-  return h?` · bis ${hhmm(h[1])}`:' · zu bei Ankunft';
+  for(let k=0;k<4;k++){
+    const w=k*7*864e5,h=x.hours.find(([a,b])=>a<=t-w&&t-w<b);
+    if(h)return ` · bis ${hhmm(h[1]+w)}`;
+  }
+  return ' · zu bei Ankunft';
 }
 // Eine Zeile je Kategorie: „Name Entfernung, bis 20:00“, Namen öffnen Google Maps
 function poiChips(pr,t){
@@ -961,12 +1058,17 @@ function renderRoute(){
   for(const [p,c] of [[[route.a.lat,route.a.lng],'#2f7bf5'],[[route.b.lat,route.b.lng],'#d64545']])L.circleMarker(p,{radius:8,color:'#fff',weight:3,fillColor:c,fillOpacity:1}).addTo(routeLayer);
   top.forEach((o,i)=>L.marker([o.s.lat,o.s.lng],{zIndexOffset:2000-i,icon:L.divIcon({className:'',iconSize:[0,0],html:`<div class="pin g">${i+1}. ${fmt(o.p)}</div>`})}).bindPopup(card(o.s,prOf(o.s),null),{minWidth:250,autoPanPaddingTopLeft:[10,64]}).addTo(routeLayer));
   route.bounds=line.getBounds();
+  const incs=route.incs||[],incKm=x=>x.b-x.a>=1?`km ${Math.round(x.a)}–${Math.round(x.b)}`:`km ${Math.round(x.a)}`;
+  const incLine=x=>`${x.t} · ${incKm(x)}${x.delay>=60?` · +${Math.round(x.delay/60)} min`:''}`;
+  for(const x of incs)L.marker(x.p,{icon:incIcon(x.k),zIndexOffset:1000,keyboard:false}).bindPopup(`<b>${esc(x.t)}</b><br>${esc(incLine(x).split(' · ').slice(1).join(' · '))} der Route`).addTo(routeLayer);
+  const incRow=x=>`<div class="irow"><span class="inc" style="background:${INC[x.k][2]}">${ic(INC[x.k][1])}</span>${esc(incLine(x))}</div>`;
+  const incInfo=incs.length?`<div class="incs"><b>${incs.length} ${incs.length===1?'Meldung':'Meldungen'} auf der Strecke</b>${incs.slice(0,4).map(incRow).join('')}${incs.length>4?`<details><summary>${incs.length-4} weitere</summary>${incs.slice(4).map(incRow).join('')}</details>`:''}</div>`:'';
   const rngInfo=ranked.rng?`<div class="sv ${ranked.rng<route.km?'r':'mut'}">${ranked.rng<route.km?`Deine Reichweite endet bei km ${Math.round(ranked.rng)}, das Ziel liegt dahinter: unterwegs tanken.`:'Das Ziel liegt innerhalb deiner Reichweite.'}${ranked.out?` ${ranked.out} ${ranked.out===1?'Tankstelle':'Tankstellen'} dahinter ausgeblendet.`:''}</div>`:'';
   const risky=ranked.filter(o=>o.risk).length;
   const noonInfo=ranked.dep>=nextNoon(route.t)?`<div class="facts warn">${ic('warn')}Du fährst nach 12 Uhr los. Die Preise sind von davor: Route nach 12 Uhr neu berechnen, dann stimmen sie.</div>`
     :ranked.late?`<div class="facts warn">${ic('warn')}${ranked.late} ${ranked.late===1?'Tankstelle':'Tankstellen'} nach 12 Uhr ausgeblendet (inkl. ${S.noonbuf} min Puffer).</div>`
     :risky?`<div class="facts warn">${ic('warn')}Bei ${risky} ${risky===1?'Tankstelle':'Tankstellen'} kommst du nach 12 Uhr an (inkl. ${S.noonbuf} min Puffer). Dort kann der Preis bis dahin gestiegen sein.</div>`:'';
-  $('#rsum').innerHTML=`<div class="sum">${km(route.km)} · ${dur(route.sec)}${route.delay>=60?`<span class="dl ${dCls(route.delay)}"> (+${Math.round(route.delay/60)} min Stau)</span>`:''} · ${ranked.length} ${ranked.length===1?'Tankstelle':'Tankstellen'} mit ${FN[S.fuel]} bis ${route.corr} km neben der Strecke${top[0]?` · günstigste <b>${fmt(top[0].p)} €</b>`:''}<div class="mut">Preise von ${hhmm(route.t)} Uhr · Abfahrt ${when(ranked.dep)}</div>${calcOn()&&ranked.length>1?`<div class="mut">Vergleich: mittlere Kosten aller Tankstellen der Strecke (Median) für ${String(S.lit).replace('.',',')} l, inkl. Umweg</div>`:''}${rngInfo}${noonInfo}${poiCats().length?`<div class="mut">${route.poiErr?`Orte in der Nähe konnten nicht geladen werden (TomTom: ${esc(route.poiErr)}).`:'Orte in der Nähe und Öffnungszeiten: TomTom'}</div>`:''}</div><div class="row"><button data-rmap>Auf Karte zeigen</button><button class="sec" data-rclear>Route löschen</button></div>`;
+  $('#rsum').innerHTML=`<div class="sum">${km(route.km)} · ${dur(route.sec)}${route.delay>=60?`<span class="dl ${dCls(route.delay)}"> (+${Math.round(route.delay/60)} min Stau)</span>`:''} · ${ranked.length} ${ranked.length===1?'Tankstelle':'Tankstellen'} mit ${FN[S.fuel]} bis ${route.corr} km neben der Strecke${top[0]?` · günstigste <b>${fmt(top[0].p)} €</b>`:''}<div class="mut">Preise von ${hhmm(route.t)} Uhr · Abfahrt ${when(ranked.dep)}</div>${calcOn()&&ranked.length>1?`<div class="mut">Vergleich: mittlere Kosten aller Tankstellen der Strecke (Median) für ${String(S.lit).replace('.',',')} l, inkl. Umweg</div>`:''}${rngInfo}${noonInfo}${incInfo}${poiCats().length?`<div class="mut">${route.poiErr?`Orte in der Nähe konnten nicht geladen werden (TomTom: ${esc(route.poiErr)}).`:'Orte in der Nähe und Öffnungszeiten: TomTom'}</div>`:''}</div><div class="row"><button data-rmap>Auf Karte zeigen</button><button class="sec" data-rclear>Route löschen</button></div>`;
   $('#ritems').innerHTML=top.map((o,i)=>{
     const x=mid-o.c,sv=calc&&ranked.length>1&&Math.abs(x)>=0.005?`<div class="facts"><span class="${x>0?'g':'r'}" aria-label="${eur(x)} ${x>0?'günstiger':'teurer'} als der Median der Strecke, inklusive Umweg">${ic('euro')}${x>0?'−':'+'}${eur(x)} ggü. Median</span><span class="mut">inkl. Umweg</span></div>`:'';
     const arr=hhmm(o.arr);
@@ -1092,8 +1194,7 @@ function openSettings(){
   const d=$('#dlg');if(d.open)return;
   $('#key').value=S.key;
   $('#tt').value=S.tt;
-  if(Q.day!==utcDay())Q={day:utcDay(),api:0,tile:0,warn:{}};
-  $('#qset').textContent=`Heute (UTC) über diese App: ${Q.api.toLocaleString('de-DE')} von 2.500 Anfragen · ${Q.tile.toLocaleString('de-DE')} von 50.000 Kacheln. Echte Zahlen im Dashboard auf developer.tomtom.com.`;
+  $('#qset').textContent=`Diesen Monat über diese App (frei): ${qTxt()}. Echte Zahlen im Dashboard auf developer.tomtom.com.`;
   $('#tstyle').value=S.tstyle;
   $('#lit').value=S.lit?String(S.lit).replace('.',','):'';
   $('#cons').value=S.cons?String(S.cons).replace('.',','):'';
