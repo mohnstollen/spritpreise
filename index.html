@@ -73,6 +73,17 @@ dialog menu #save{background:var(--ink);color:var(--amber);border-color:var(--in
 .rrow button,#rsum button{border:0;border-radius:8px;padding:10px 14px;font-weight:700;background:var(--ink);color:var(--amber)}
 #rsum button.sec{background:none;border:1px solid var(--line);color:var(--fg);font-weight:600}
 #rsum .row{margin:8px 0}
+.ic{width:15px;height:15px;flex:none;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.facts{display:flex;flex-wrap:wrap;gap:4px 12px;align-items:center;margin-top:6px;font-size:14px;font-variant-numeric:tabular-nums}
+.facts span{display:inline-flex;gap:4px;align-items:center}
+.facts.mut{color:var(--mut)}
+.facts.warn{display:block;color:#b26b00;font-weight:600}
+.facts.warn .ic{vertical-align:-2px;margin-right:5px}
+@media(prefers-color-scheme:dark){.facts.warn{color:var(--amber)}}
+.rk{justify-content:center;min-width:22px;height:22px;border-radius:11px;background:var(--ink);color:var(--amber);font-weight:800;font-size:13px}
+.ropt{display:flex;gap:8px 14px;align-items:center;flex-wrap:wrap;color:var(--mut);font-size:14px}
+.ropt label{display:inline-flex;gap:6px;align-items:center}
+.ropt input[type=time]{padding:8px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--fg)}
 #sf input{flex:1;min-width:0;padding:9px 12px;border:1px solid #3a444c;border-radius:8px;background:#222a31;color:#fff}
 #sf button{background:var(--amber);color:#14181c;border:0;border-radius:8px;padding:0 14px;font-weight:700}
 #res{position:absolute;z-index:1200;top:8px;left:12px;right:12px;background:var(--card);border:1px solid var(--line);border-radius:10px;box-shadow:0 4px 16px #0006;overflow:hidden}
@@ -149,6 +160,14 @@ dialog h4{margin:14px 0 6px}
 </style>
 </head>
 <body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-pin" viewBox="0 0 24 24"><path d="M12 21s-7-6.2-7-11.5a7 7 0 0 1 14 0C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/></symbol>
+  <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+  <symbol id="i-flag" viewBox="0 0 24 24"><path d="M5 21V4M5 4h11l-2 4 2 4H5"/></symbol>
+  <symbol id="i-side" viewBox="0 0 24 24"><path d="M4 4v16M10 12h10M17 9l3 3-3 3"/></symbol>
+  <symbol id="i-detour" viewBox="0 0 24 24"><path d="M5 20V9a4 4 0 0 1 4-4h6a4 4 0 0 1 4 4v11M16 17l3 3 3-3"/></symbol>
+  <symbol id="i-warn" viewBox="0 0 24 24"><path d="M12 3 2 20h20L12 3zM12 10v4M12 17v.5"/></symbol>
+</svg>
 <header>
   <div class="seg" id="fuel" role="group" aria-label="Spritsorte">
     <button data-f="e5">E5</button><button data-f="e10">E10</button><button data-f="diesel">Diesel</button>
@@ -193,6 +212,10 @@ dialog h4{margin:14px 0 6px}
         <button id="rgo">Route berechnen</button>
       </div>
       <input id="rr" inputmode="numeric" autocomplete="off" placeholder="Restreichweite in km (optional)" aria-label="Restreichweite in km">
+      <div class="ropt">
+        <label>Abfahrt <input type="time" id="rdep" aria-label="Abfahrt (leer = jetzt)"></label>
+        <label><input type="checkbox" id="rnoon"> nur vor 12 Uhr erreichbar</label>
+      </div>
     </form>
     <p id="rstat" class="mut" role="status"></p>
     <div id="rsum"></div>
@@ -233,6 +256,17 @@ dialog h4{margin:14px 0 6px}
       <label>Verbrauch (l/100 km)<input id="cons" inputmode="decimal" autocomplete="off" placeholder="7"></label>
     </div>
     <p class="mut">Für den Umwegrechner in der Liste. Leer lassen schaltet ihn ab.</p>
+    <label style="margin-top:12px">Puffer für die 12-Uhr-Regel
+      <select id="noonbuf">
+        <option value="0">kein Puffer</option>
+        <option value="10">10 Minuten</option>
+        <option value="15">15 Minuten</option>
+        <option value="20">20 Minuten</option>
+        <option value="30">30 Minuten</option>
+        <option value="45">45 Minuten</option>
+      </select>
+    </label>
+    <p class="mut">Tankstellen dürfen ihre Preise nur einmal täglich um 12 Uhr erhöhen. Bei der Route gilt eine Tankstelle als „nach 12 Uhr“, wenn Ankunft, Umweg und dieser Puffer (für Stau) über 12 Uhr hinausgehen.</p>
     <div class="row"><button type="button" id="exp">Daten exportieren</button><button type="button" id="impb">Daten importieren</button></div>
     <div id="appbg" hidden>
       <label style="margin-top:12px">Widget zeigt
@@ -280,7 +314,7 @@ dialog h4{margin:14px 0 6px}
 <script>
 const $=s=>document.querySelector(s), $$=s=>document.querySelectorAll(s);
 const LS={get:(k,d)=>{try{return JSON.parse(localStorage.getItem(k))??d}catch{return d}},set:(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch{}}};
-const S={key:LS.get('key',''),fuel:LS.get('fuel','e5'),sort:LS.get('sort','dist'),favs:LS.get('favs',{}),fp:LS.get('fp',{}),hist:LS.get('hist',{}),wait:0,open:LS.get('open',false),grp:'all',groups:LS.get('groups',[{id:'default',name:'Allgemein'}]),order:[],views:LS.get('views',[]),lit:LS.get('lit',40),cons:LS.get('cons',7),hide:LS.get('hide',[]),noBAB:LS.get('noBAB',false),tt:LS.get('tt',''),traffic:LS.get('traffic',false),tstyle:LS.get('tstyle','all'),base:LS.get('base','osm'),alarms:LS.get('alarms',{}),wgrp:LS.get('wgrp','all'),bgint:LS.get('bgint',30),routes:LS.get('routes',[]),nav:LS.get('nav',/iP(hone|ad|od)/.test(navigator.userAgent)?'apple':'google'),stations:[],me:null,view:'map'};
+const S={key:LS.get('key',''),fuel:LS.get('fuel','e5'),sort:LS.get('sort','dist'),favs:LS.get('favs',{}),fp:LS.get('fp',{}),hist:LS.get('hist',{}),wait:0,open:LS.get('open',false),grp:'all',groups:LS.get('groups',[{id:'default',name:'Allgemein'}]),order:[],views:LS.get('views',[]),lit:LS.get('lit',40),cons:LS.get('cons',7),hide:LS.get('hide',[]),noBAB:LS.get('noBAB',false),tt:LS.get('tt',''),traffic:LS.get('traffic',false),tstyle:LS.get('tstyle','all'),base:LS.get('base','osm'),alarms:LS.get('alarms',{}),wgrp:LS.get('wgrp','all'),bgint:LS.get('bgint',30),routes:LS.get('routes',[]),noonbuf:LS.get('noonbuf',15),nav:LS.get('nav',/iP(hone|ad|od)/.test(navigator.userAgent)?'apple':'google'),stations:[],me:null,view:'map'};
 const FN={e5:'E5',e10:'E10',diesel:'Diesel'};
 const API='https://creativecommons.tankerkoenig.de/json/';
 const FRESH=120000;
@@ -299,6 +333,7 @@ const when=ms=>{const d=new Date(ms);return (d.toDateString()===new Date().toDat
 const msg=t=>{$('#msg').textContent=t||''};
 const num=v=>{const x=parseFloat(String(v).replace(',','.'));return x>0?x:0};
 const eur=x=>Math.abs(x).toFixed(2).replace('.',',')+' €';
+const ic=n=>`<svg class="ic" aria-hidden="true"><use href="#i-${n}"/></svg>`;
 const keyMissing=()=>msg('Kein API-Key. Bitte unter ⚙ eintragen.');
 
 /* Eigener Dialog statt prompt()/confirm().
@@ -491,7 +526,9 @@ function list(){
   if(wp.length){
     const best=wp.reduce((m,o)=>o.pr[S.fuel]<m.pr[S.fuel]||(o.pr[S.fuel]===m.pr[S.fuel]&&o.d<m.d)?o:m);
     const avg=wp.reduce((t,o)=>t+o.pr[S.fuel],0)/wp.length;
-    $('#sum').innerHTML=`Günstigste: <b>${fmt(best.pr[S.fuel])} €</b> bei ${esc(best.s.brand||best.s.name)}, ${km(best.d)} · Mittel <b>${fmt(avg)} €</b> · ${wp.length} Tankstellen`;
+    const hr=new Date().getHours();
+    $('#sum').innerHTML=`Günstigste: <b>${fmt(best.pr[S.fuel])} €</b> bei ${esc(best.s.brand||best.s.name)}, ${km(best.d)} · Mittel <b>${fmt(avg)} €</b> · ${wp.length} ${wp.length===1?'Tankstelle':'Tankstellen'}`+
+      (hr>=9&&hr<12?`<div class="facts warn">${ic('warn')}Ab 12 Uhr dürfen die Preise steigen, bis dahin ist es meist am günstigsten.</div>`:'');
   }
   $('#sum').hidden=!wp.length;
   $('#items').innerHTML=a.map(o=>card(o.s,o.pr,o.d,sv(o))).join('')||'<p class="empty">Keine Tankstellen geladen. Wähle auf der Karte einen Ausschnitt mit Zoomstufe 11 oder näher.</p>';
@@ -726,15 +763,24 @@ async function calcRoute(){
   }catch(e){st(e instanceof TypeError?'Keine Verbindung. Bitte später erneut versuchen.':e.message)}
   finally{$('#rgo').disabled=false}
 }
-// Sortierung nach Kosten inkl. Umweg (mit Umwegrechner) oder Preis; berücksichtigt Sorte, Filter und Restreichweite.
+// Abfahrt aus dem Feld (heute, oder morgen, falls die Uhrzeit schon vorbei ist); leer = Zeitpunkt der Berechnung
+function departure(){
+  const v=$('#rdep').value;if(!v)return route.t;
+  const [h,m]=v.split(':').map(Number),d=new Date(route.t);d.setHours(h,m,0,0);
+  if(d.getTime()<route.t-5*60000)d.setDate(d.getDate()+1);
+  return d.getTime();
+}
+// Nächster 12-Uhr-Zeitpunkt nach dem Preisstand: Wer danach ankommt, findet womöglich höhere Preise vor
+function nextNoon(t){const d=new Date(t);d.setHours(12,0,0,0);if(d.getTime()<=t)d.setDate(d.getDate()+1);return d.getTime()}
+// Sortierung nach Kosten inkl. Umweg (mit Umwegrechner) oder Preis; berücksichtigt Sorte, Filter, Restreichweite und 12-Uhr-Regel.
 // Umweg in Minuten grob mit 40 km/h; erreichbar ist, was bis Tankstelle (Strecke + Abstand) in der Reichweite liegt.
 function rankRoute(){
-  const calc=calcOn(),rng=num($('#rr').value);let out=0;
+  const calc=calcOn(),rng=num($('#rr').value),dep=departure(),noon=nextNoon(route.t),only=$('#rnoon').checked;let out=0,late=0;
   const r=route.cands.filter(o=>vis(o.s)&&n(o.s[S.fuel])!=null).map(o=>{
-    const p=n(o.s[S.fuel]),det=2*1.3*o.off,at=o.at*route.scale;
-    return{...o,at,p,det,sec:timeAt(at),dmin:Math.round(det*1.5),c:calc?p*(S.lit+det*S.cons/100):p};
-  }).filter(o=>!rng||o.at+1.3*o.off<=rng||!++out).sort((x,y)=>x.c-y.c||x.at-y.at);
-  r.out=out;r.rng=rng;
+    const p=n(o.s[S.fuel]),det=2*1.3*o.off,at=o.at*route.scale,sec=timeAt(at),dmin=Math.round(det*1.5),arr=dep+sec*1000;
+    return{...o,at,p,det,sec,dmin,arr,risk:arr+(dmin/2+S.noonbuf)*60000>=noon,c:calc?p*(S.lit+det*S.cons/100):p};
+  }).filter(o=>!rng||o.at+1.3*o.off<=rng||!++out).filter(o=>!only||!o.risk||!++late).sort((x,y)=>x.c-y.c||x.at-y.at);
+  Object.assign(r,{out,late,rng,dep,only});
   return r;
 }
 function renderRoute(){
@@ -747,15 +793,26 @@ function renderRoute(){
   top.forEach((o,i)=>L.marker([o.s.lat,o.s.lng],{zIndexOffset:2000-i,icon:L.divIcon({className:'',iconSize:[0,0],html:`<div class="pin g">${i+1}. ${fmt(o.p)}</div>`})}).bindPopup(card(o.s,prOf(o.s),null),{minWidth:250}).addTo(routeLayer));
   route.bounds=line.getBounds();
   const rngInfo=ranked.rng?`<div class="sv ${ranked.rng<route.km?'r':'mut'}">${ranked.rng<route.km?`Deine Reichweite endet bei km ${Math.round(ranked.rng)}, das Ziel liegt dahinter: unterwegs tanken.`:'Das Ziel liegt innerhalb deiner Reichweite.'}${ranked.out?` ${ranked.out} ${ranked.out===1?'Tankstelle':'Tankstellen'} dahinter ausgeblendet.`:''}</div>`:'';
-  $('#rsum').innerHTML=`<div class="sum">${km(route.km)} · ${dur(route.sec)} · ${ranked.length} ${ranked.length===1?'Tankstelle':'Tankstellen'} mit ${FN[S.fuel]} bis ${route.corr} km neben der Strecke${top[0]?` · günstigste <b>${fmt(top[0].p)} €</b>`:''}<div class="mut">Preise von ${hhmm(route.t)} Uhr, Ankunftszeiten bei Abfahrt um ${hhmm(route.t)} Uhr</div>${rngInfo}</div><div class="row"><button data-rmap>Auf Karte zeigen</button><button class="sec" data-rclear>Route löschen</button></div>`;
+  const risky=ranked.filter(o=>o.risk).length;
+  const noonInfo=ranked.dep>=nextNoon(route.t)?`<div class="facts warn">${ic('warn')}Du fährst nach 12 Uhr los. Die Preise sind von davor: Route nach 12 Uhr neu berechnen, dann stimmen sie.</div>`
+    :ranked.late?`<div class="facts warn">${ic('warn')}${ranked.late} ${ranked.late===1?'Tankstelle':'Tankstellen'} nach 12 Uhr ausgeblendet (inkl. ${S.noonbuf} min Puffer).</div>`
+    :risky?`<div class="facts warn">${ic('warn')}Bei ${risky} ${risky===1?'Tankstelle':'Tankstellen'} kommst du nach 12 Uhr an (inkl. ${S.noonbuf} min Puffer). Dort kann der Preis bis dahin gestiegen sein.</div>`:'';
+  $('#rsum').innerHTML=`<div class="sum">${km(route.km)} · ${dur(route.sec)} · ${ranked.length} ${ranked.length===1?'Tankstelle':'Tankstellen'} mit ${FN[S.fuel]} bis ${route.corr} km neben der Strecke${top[0]?` · günstigste <b>${fmt(top[0].p)} €</b>`:''}<div class="mut">Preise von ${hhmm(route.t)} Uhr · Abfahrt ${when(ranked.dep)}</div>${rngInfo}${noonInfo}</div><div class="row"><button data-rmap>Auf Karte zeigen</button><button class="sec" data-rclear>Route löschen</button></div>`;
   $('#ritems').innerHTML=top.map((o,i)=>{
     const sv=calc&&ranked.length>1?Math.abs(avg-o.c)<0.005?'':`<div class="sv ${avg>o.c?'g':'r'}">${eur(avg-o.c)} ${avg>o.c?'günstiger':'teurer'} als der Durchschnitt auf der Strecke, inkl. Umweg</div>`:'';
-    return card(o.s,prOf(o.s),null,`<div class="sv">${i+1}. bei km ${Math.round(o.at)} · ca. ${dur(o.sec)} · Ankunft ca. ${hhmm(route.t+o.sec*1000)} Uhr</div><div class="sv mut">${km(o.off)} neben der Strecke · Umweg ca. ${km(o.det)} (+${o.dmin} min)</div>${sv}`);
-  }).join('')||`<p class="empty">${ranked.out?'Keine passende Tankstelle innerhalb deiner Reichweite.':'Keine passende Tankstelle entlang der Strecke.'} Größeren Abstand wählen oder Filter prüfen.</p>`;
+    const arr=hhmm(o.arr);
+    return card(o.s,prOf(o.s),null,
+      `<div class="facts"><span class="rk" aria-label="Platz ${i+1}">${i+1}</span><span aria-label="bei Kilometer ${Math.round(o.at)}">${ic('pin')}km ${Math.round(o.at)}</span><span aria-label="Fahrzeit ${dur(o.sec)}">${ic('clock')}${dur(o.sec)}</span><span aria-label="Ankunft ${arr} Uhr">${ic('flag')}${arr}</span></div>`+
+      `<div class="facts mut"><span aria-label="${km(o.off)} neben der Strecke">${ic('side')}${km(o.off)} neben Strecke</span><span aria-label="Umweg ${km(o.det)}, ${o.dmin} Minuten">${ic('detour')}+${km(o.det)} · +${o.dmin} min</span></div>`+
+      (o.risk?`<div class="facts warn">${ic('warn')}Ankunft nach 12 Uhr: Preis kann bis dahin steigen</div>`:'')+sv);
+  }).join('')||`<p class="empty">${ranked.late?'Keine passende Tankstelle vor 12 Uhr erreichbar.':ranked.out?'Keine passende Tankstelle innerhalb deiner Reichweite.':'Keine passende Tankstelle entlang der Strecke.'} Größeren Abstand wählen oder Filter prüfen.</p>`;
 }
 $('#rf').onsubmit=e=>{e.preventDefault();calcRoute()};
 $('#rs').value=LS.get('rStart','');$('#rd').value=LS.get('rDest','');$('#rc').value=String(LS.get('rCorr',2));
 $('#rr').addEventListener('input',()=>{if(route)renderRoute()});
+$('#rnoon').checked=LS.get('rNoon',false);
+$('#rnoon').onchange=()=>{LS.set('rNoon',$('#rnoon').checked);if(route)renderRoute()};
+$('#rdep').addEventListener('input',()=>{if(route)renderRoute()});
 $('#rswap').onclick=()=>{const a=$('#rs').value;$('#rs').value=$('#rd').value;$('#rd').value=a};
 
 /* Gemerkte Routen („Strecke zu Oma“): Antippen rechnet sofort, lange drücken zum Umbenennen oder Löschen */
@@ -824,6 +881,7 @@ function openSettings(){
   $('#lit').value=S.lit?String(S.lit).replace('.',','):'';
   $('#cons').value=S.cons?String(S.cons).replace('.',','):'';
   $('#navapp').value=S.nav;
+  $('#noonbuf').value=String(S.noonbuf);
   $('#appbg').hidden=!APP;
   $('#wgrp').innerHTML='<option value="all">Alle Favoriten (die ersten 5)</option>'+S.groups.map(g=>`<option value="${esc(g.id)}">Gruppe ${esc(g.name)}</option>`).join('');
   $('#wgrp').value=S.groups.some(g=>g.id===S.wgrp)?S.wgrp:'all';$('#bgint').value=String(S.bgint);
@@ -854,7 +912,7 @@ $('#flt').addEventListener('close',e=>{
 });
 
 /* Daten sichern und wiederherstellen */
-const KEYS=['favs','order','groups','views','start','lit','cons','fuel','sort','open','hide','noBAB','nav','hist','traffic','tstyle','base','alarms','wgrp','bgint','routes'];
+const KEYS=['favs','order','groups','views','start','lit','cons','fuel','sort','open','hide','noBAB','nav','hist','traffic','tstyle','base','alarms','wgrp','bgint','routes','noonbuf'];
 async function exportData(){
   const data={app:'spritpreise',version:1,exported:new Date().toISOString()};
   KEYS.forEach(k=>{const v=LS.get(k,null);if(v!=null)data[k]=v});
@@ -887,6 +945,7 @@ $('#dlg').addEventListener('close',e=>{
   S.key=$('#key').value.trim();LS.set('key',S.key);LS.set('start',$('#start').value);
   S.lit=num($('#lit').value);S.cons=num($('#cons').value);LS.set('lit',S.lit);LS.set('cons',S.cons);
   S.nav=$('#navapp').value;LS.set('nav',S.nav);
+  S.noonbuf=+$('#noonbuf').value;LS.set('noonbuf',S.noonbuf);
   if(APP){S.wgrp=$('#wgrp').value;S.bgint=+$('#bgint').value;LS.set('wgrp',S.wgrp);LS.set('bgint',S.bgint)}
   const tt=$('#tt').value.trim(),ts=$('#tstyle').value;
   if(ts!==S.tstyle){S.tstyle=ts;LS.set('tstyle',ts);if(tt===S.tt)setTraffic(S.traffic)}
