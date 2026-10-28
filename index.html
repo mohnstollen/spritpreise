@@ -85,6 +85,11 @@ dialog menu #save{background:var(--ink);color:var(--amber);border-color:var(--in
 .ropt label{display:inline-flex;gap:6px;align-items:center}
 .pois{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;font-size:13px}
 .pois a{display:inline-flex;gap:4px;align-items:center;border:1px solid var(--line);border-radius:14px;padding:4px 10px;color:var(--fg);text-decoration:none}
+.pois a.zu{color:var(--bad);border-color:var(--bad)}
+.rins{position:relative}
+.ac{position:absolute;z-index:20;left:0;right:0;background:var(--card);border:1px solid var(--line);border-radius:10px;box-shadow:0 4px 16px #0006;overflow:hidden}
+.ac button{display:block;width:100%;text-align:left;background:none;border:0;border-bottom:1px solid var(--line);padding:9px 12px}
+.ac button span{display:block;color:var(--mut);font-size:13px}
 .ropt input[type=time]{padding:8px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--fg)}
 #sf input{flex:1;min-width:0;padding:9px 12px;border:1px solid #3a444c;border-radius:8px;background:#222a31;color:#fff}
 #sf button{background:var(--amber);color:#14181c;border:0;border-radius:8px;padding:0 14px;font-weight:700}
@@ -209,6 +214,7 @@ dialog h4{margin:14px 0 6px}
         <div class="rins">
           <input id="rs" placeholder="Start (leer = mein Standort)" autocomplete="off" aria-label="Start">
           <input id="rd" placeholder="Ziel (leer = mein Standort)" autocomplete="off" aria-label="Ziel">
+          <div id="ac" class="ac" role="listbox" hidden></div>
         </div>
         <button type="button" id="rswap" aria-label="Start und Ziel tauschen">⇅</button>
       </div>
@@ -281,7 +287,7 @@ dialog h4{margin:14px 0 6px}
       <option value="1000">im Umkreis von 1 km</option>
       <option value="2000">im Umkreis von 2 km</option>
     </select>
-    <p class="mut">Daten von OpenStreetMap. Antippen öffnet Google Maps, dort am besten die aktuellen Öffnungszeiten prüfen.</p>
+    <p class="mut">Daten und Öffnungszeiten von TomTom (eine Abfrage je Tankstelle, gleicher Key wie für die Route). Antippen öffnet Google Maps zum Nachprüfen.</p>
     <div class="row"><button type="button" id="exp">Daten exportieren</button><button type="button" id="impb">Daten importieren</button></div>
     <div id="appbg" hidden>
       <label style="margin-top:12px">Widget zeigt
@@ -348,6 +354,7 @@ const when=ms=>{const d=new Date(ms);return (d.toDateString()===new Date().toDat
 const msg=t=>{$('#msg').textContent=t||''};
 const num=v=>{const x=parseFloat(String(v).replace(',','.'));return x>0?x:0};
 const eur=x=>Math.abs(x).toFixed(2).replace('.',',')+' €';
+const median=a=>{const s=[...a].sort((x,y)=>x-y),m=s.length>>1;return s.length%2?s[m]:(s[m-1]+s[m])/2};
 const ic=n=>`<svg class="ic" aria-hidden="true"><use href="#i-${n}"/></svg>`;
 const keyMissing=()=>msg('Kein API-Key. Bitte unter ⚙ eintragen.');
 
@@ -540,9 +547,9 @@ function list(){
   };
   if(wp.length){
     const best=wp.reduce((m,o)=>o.pr[S.fuel]<m.pr[S.fuel]||(o.pr[S.fuel]===m.pr[S.fuel]&&o.d<m.d)?o:m);
-    const avg=wp.reduce((t,o)=>t+o.pr[S.fuel],0)/wp.length;
+    const mid=median(wp.map(o=>o.pr[S.fuel]));
     const hr=new Date().getHours();
-    $('#sum').innerHTML=`Günstigste: <b>${fmt(best.pr[S.fuel])} €</b> bei ${esc(best.s.brand||best.s.name)}, ${km(best.d)} · Mittel <b>${fmt(avg)} €</b> · ${wp.length} ${wp.length===1?'Tankstelle':'Tankstellen'}`+
+    $('#sum').innerHTML=`Günstigste: <b>${fmt(best.pr[S.fuel])} €</b> bei ${esc(best.s.brand||best.s.name)}, ${km(best.d)} · Median <b>${fmt(mid)} €</b> · ${wp.length} ${wp.length===1?'Tankstelle':'Tankstellen'}`+
       (hr>=9&&hr<12?`<div class="facts warn">${ic('warn')}Ab 12 Uhr dürfen die Preise steigen, bis dahin ist es meist am günstigsten.</div>`:'');
   }
   $('#sum').hidden=!wp.length;
@@ -722,7 +729,8 @@ function project(rt,p){
   }
   return best;
 }
-async function geocode(q){
+async function geocode(q,el){
+  if(el?.dataset.lat)return{lat:+el.dataset.lat,lng:+el.dataset.lng};
   if(!q){if(S.me)return{lat:S.me[0],lng:S.me[1]};throw new Error('Standort unbekannt. Bitte einen Start eingeben oder den Standort freigeben.')}
   const r=await (await fetch('https://nominatim.openstreetmap.org/search?format=jsonv2&countrycodes=de&limit=1&accept-language=de&q='+encodeURIComponent(q))).json();
   if(!r.length)throw new Error(`„${q}“ nicht gefunden`);
@@ -752,11 +760,12 @@ async function calcRoute(){
   if(!S.tt)return needTomTom('die Routenplanung');
   const start=$('#rs').value.trim(),dest=$('#rd').value.trim(),corr=+$('#rc').value;
   LS.set('rStart',start);LS.set('rDest',dest);LS.set('rCorr',corr);
+  for(const [k,el] of [['rSPos',$('#rs')],['rDPos',$('#rd')]])LS.set(k,el.dataset.lat?{lat:+el.dataset.lat,lng:+el.dataset.lng}:null);
   if(!start&&!dest)return st('Bitte Start oder Ziel eingeben.');
   $('#rgo').disabled=true;
   try{
     st('Suche Start und Ziel …');
-    const a=await geocode(start),b=await geocode(dest);
+    const a=await geocode(start,$('#rs')),b=await geocode(dest,$('#rd'));
     st('Berechne Route …');
     const rt=await tomtomRoute(a,b);
     rt.pts=thin(rt.pts);rt.cum=along(rt.pts);rt.scale=rt.km/(rt.cum[rt.cum.length-1]||1);
@@ -798,59 +807,64 @@ function rankRoute(){
   Object.assign(r,{out,late,rng,dep,only});
   return r;
 }
-/* Orte in der Nähe der Top-Tankstellen (OpenStreetMap über Overpass, eine Anfrage für alle).
-   Je Tankstelle und Kategorie nur der nächste Treffer; Tankstellen-Shops zählen nicht. */
+/* Orte in der Nähe der Top-Tankstellen über die TomTom-Umkreissuche (eine Anfrage je Tankstelle, alle Kategorien).
+   Je Tankstelle und Kategorie nur der nächste Treffer, mit Öffnungszeiten der nächsten 7 Tage. */
 const POI={
-  ff:{ic:'burger',label:'Fast Food',q:'nwr[amenity=fast_food][~"^(brand|name)$"~"McDonald|Burger King|KFC",i]'},
-  sm:{ic:'cart',label:'Supermarkt',q:'nwr[shop=supermarket]'},
-  bk:{ic:'bread',label:'Bäcker',q:'nwr[shop=bakery]'}
+  ff:{ic:'burger',label:'Fast Food',cat:7315015,brand:/McDonald|Burger King|KFC/i},
+  sm:{ic:'cart',label:'Supermarkt',cat:7332005},
+  bk:{ic:'bread',label:'Bäcker',cat:9361018}
 };
-const OVERPASS=['https://overpass-api.de/api/interpreter','https://overpass.kumi.systems/api/interpreter'];
 const poiCats=()=>Object.keys(POI).filter(k=>S.pois[k]);
-const poiCat=t=>t.amenity==='fast_food'?'ff':t.shop==='supermarket'?'sm':t.shop==='bakery'?'bk':null;
+const ttTime=t=>{const [y,m,d]=t.date.split('-').map(Number);return new Date(y,m-1,d,t.hour,t.minute).getTime()};
 async function loadPois(list){
-  const cats=poiCats(),rt=route;if(!cats.length||!rt)return;
+  const cats=poiCats(),rt=route;if(!cats.length||!rt||!S.tt)return;
   const key=cats.join()+'|'+S.poirad;
-  if(rt.poiKey!==key)Object.assign(rt,{poiKey:key,pois:new Map(),poiErr:false});
+  if(rt.poiKey!==key)Object.assign(rt,{poiKey:key,pois:new Map(),poiErr:''});
   const todo=list.filter(o=>!rt.pois.has(o.s.id));
   if(!todo.length||rt.poiErr||rt.poiBusy)return;
   rt.poiBusy=true;
-  const q='[out:json][timeout:25];('+todo.flatMap(o=>cats.map(c=>`${POI[c].q}(around:${S.poirad},${o.s.lat},${o.s.lng});`)).join('')+');out center tags;';
   try{
-    let res=null;
-    for(const u of OVERPASS){
-      try{res=await fetch(u,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'data='+encodeURIComponent(q)});if(res.ok)break}catch{res=null}
-    }
-    if(!res?.ok)throw new Error('Overpass');
-    const els=(await res.json()).elements||[];
     for(const o of todo){
+      const r=await fetch(`https://api.tomtom.com/search/2/nearbySearch/.json?key=${encodeURIComponent(S.tt)}&lat=${o.s.lat}&lon=${o.s.lng}&radius=${S.poirad}&categorySet=${cats.map(c=>POI[c].cat).join(',')}&limit=100&openingHours=nextSevenDays&language=de-DE`);
+      const j=await r.json().catch(()=>({}));
+      if(!r.ok)throw new Error(`HTTP ${r.status}${(t=>t?': '+t:'')(j.detailedError?.message||j.errorText||'')}`);
       const near={};
-      for(const e of els){
-        const t=e.tags||{},cat=poiCat(t),lat=e.lat??e.center?.lat,lng=e.lon??e.center?.lon;
-        if(!cat||!cats.includes(cat)||lat==null)continue;
-        const d=dist([o.s.lat,o.s.lng],[lat,lng])*1000;
-        if(d<=S.poirad&&(!near[cat]||d<near[cat].d))near[cat]={cat,d,lat,lng,name:t.brand||t.name||POI[cat].label,
-          addr:[[t['addr:street'],t['addr:housenumber']].filter(Boolean).join(' '),t['addr:city']].filter(Boolean).join(', ')};
+      for(const x of j.results||[]){
+        const ids=(x.poi?.categorySet||[]).map(c=>c.id),cat=cats.find(c=>ids.includes(POI[c].cat));
+        if(!cat||!x.position)continue;
+        const name=x.poi.brands?.[0]?.name||x.poi.name||POI[cat].label;
+        if(POI[cat].brand&&!POI[cat].brand.test(name+' '+(x.poi.name||'')))continue;
+        const d=x.dist??dist([o.s.lat,o.s.lng],[x.position.lat,x.position.lon])*1000;
+        if(d<=S.poirad&&(!near[cat]||d<near[cat].d))near[cat]={cat,d,name,lat:x.position.lat,lng:x.position.lon,addr:x.address?.freeformAddress||'',
+          hours:(x.poi.openingHours?.timeRanges||[]).map(t=>[ttTime(t.startTime),ttTime(t.endTime)])};
       }
       rt.pois.set(o.s.id,Object.values(near).sort((a,b)=>a.d-b.d));
+      if(route===rt)renderRoute();
+      await new Promise(res=>setTimeout(res,150));
     }
-  }catch{rt.poiErr=true}
+  }catch(e){rt.poiErr=e instanceof TypeError?'keine Verbindung':e.message}
   rt.poiBusy=false;
   if(route===rt)renderRoute();
 }
 const poiUrl=x=>'https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(x.addr?`${x.name}, ${x.addr}`:`${x.lat.toFixed(5)},${x.lng.toFixed(5)}`);
+// Geöffnet bei Ankunft an der Tankstelle? Ohne Angaben von TomTom bleibt es offen.
+function poiOpen(x,t){
+  if(!x.hours.length)return '';
+  const h=x.hours.find(([a,b])=>a<=t&&t<b);
+  return h?` · bis ${hhmm(h[1])}`:' · zu bei Ankunft';
+}
 function poiRow(o){
   if(!poiCats().length)return '';
   const pr=route.pois?.get(o.s.id);
   if(!pr)return route.poiErr?'':'<div class="pois mut">Suche Orte in der Nähe …</div>';
-  return pr.length?`<div class="pois">${pr.map(x=>{const m=x.d<1000?`${Math.round(x.d/10)*10} m`:km(x.d/1000);
-    return `<a href="${esc(poiUrl(x))}" target="_blank" rel="noopener" aria-label="${esc(x.name)}, ${m}, in Google Maps öffnen">${ic(POI[x.cat].ic)}${esc(x.name)} · ${m}</a>`}).join('')}</div>`:'';
+  return pr.length?`<div class="pois">${pr.map(x=>{const m=x.d<1000?`${Math.round(x.d/10)*10} m`:km(x.d/1000),op=poiOpen(x,o.arr);
+    return `<a href="${esc(poiUrl(x))}"${op.includes('zu')?' class="zu"':''} target="_blank" rel="noopener" aria-label="${esc(x.name)}, ${m}${esc(op)}, in Google Maps öffnen">${ic(POI[x.cat].ic)}${esc(x.name)} · ${m}${op}</a>`}).join('')}</div>`:'';
 }
 function renderRoute(){
   routeLayer.clearLayers();
   if(!route){$('#rsum').innerHTML='';$('#ritems').innerHTML='';return}
   const ranked=rankRoute(),top=ranked.slice(0,10),calc=calcOn();
-  const avg=ranked.length?ranked.reduce((t,o)=>t+o.c,0)/ranked.length:0;
+  const mid=ranked.length?median(ranked.map(o=>o.c)):0;
   const line=L.polyline(route.pts,{color:'#2f7bf5',weight:5,opacity:.8}).addTo(routeLayer);
   for(const [p,c] of [[[route.a.lat,route.a.lng],'#2f7bf5'],[[route.b.lat,route.b.lng],'#d64545']])L.circleMarker(p,{radius:8,color:'#fff',weight:3,fillColor:c,fillOpacity:1}).addTo(routeLayer);
   top.forEach((o,i)=>L.marker([o.s.lat,o.s.lng],{zIndexOffset:2000-i,icon:L.divIcon({className:'',iconSize:[0,0],html:`<div class="pin g">${i+1}. ${fmt(o.p)}</div>`})}).bindPopup(card(o.s,prOf(o.s),null),{minWidth:250}).addTo(routeLayer));
@@ -860,9 +874,9 @@ function renderRoute(){
   const noonInfo=ranked.dep>=nextNoon(route.t)?`<div class="facts warn">${ic('warn')}Du fährst nach 12 Uhr los. Die Preise sind von davor: Route nach 12 Uhr neu berechnen, dann stimmen sie.</div>`
     :ranked.late?`<div class="facts warn">${ic('warn')}${ranked.late} ${ranked.late===1?'Tankstelle':'Tankstellen'} nach 12 Uhr ausgeblendet (inkl. ${S.noonbuf} min Puffer).</div>`
     :risky?`<div class="facts warn">${ic('warn')}Bei ${risky} ${risky===1?'Tankstelle':'Tankstellen'} kommst du nach 12 Uhr an (inkl. ${S.noonbuf} min Puffer). Dort kann der Preis bis dahin gestiegen sein.</div>`:'';
-  $('#rsum').innerHTML=`<div class="sum">${km(route.km)} · ${dur(route.sec)} · ${ranked.length} ${ranked.length===1?'Tankstelle':'Tankstellen'} mit ${FN[S.fuel]} bis ${route.corr} km neben der Strecke${top[0]?` · günstigste <b>${fmt(top[0].p)} €</b>`:''}<div class="mut">Preise von ${hhmm(route.t)} Uhr · Abfahrt ${when(ranked.dep)}</div>${rngInfo}${noonInfo}${poiCats().length?`<div class="mut">${route.poiErr?'Orte in der Nähe konnten nicht geladen werden (OpenStreetMap-Dienst überlastet).':'Orte in der Nähe: © OpenStreetMap'}</div>`:''}</div><div class="row"><button data-rmap>Auf Karte zeigen</button><button class="sec" data-rclear>Route löschen</button></div>`;
+  $('#rsum').innerHTML=`<div class="sum">${km(route.km)} · ${dur(route.sec)} · ${ranked.length} ${ranked.length===1?'Tankstelle':'Tankstellen'} mit ${FN[S.fuel]} bis ${route.corr} km neben der Strecke${top[0]?` · günstigste <b>${fmt(top[0].p)} €</b>`:''}<div class="mut">Preise von ${hhmm(route.t)} Uhr · Abfahrt ${when(ranked.dep)}</div>${rngInfo}${noonInfo}${poiCats().length?`<div class="mut">${route.poiErr?`Orte in der Nähe konnten nicht geladen werden (TomTom: ${esc(route.poiErr)}).`:'Orte in der Nähe und Öffnungszeiten: TomTom'}</div>`:''}</div><div class="row"><button data-rmap>Auf Karte zeigen</button><button class="sec" data-rclear>Route löschen</button></div>`;
   $('#ritems').innerHTML=top.map((o,i)=>{
-    const sv=calc&&ranked.length>1?Math.abs(avg-o.c)<0.005?'':`<div class="sv ${avg>o.c?'g':'r'}">${eur(avg-o.c)} ${avg>o.c?'günstiger':'teurer'} als der Durchschnitt auf der Strecke, inkl. Umweg</div>`:'';
+    const sv=calc&&ranked.length>1?Math.abs(mid-o.c)<0.005?'':`<div class="sv ${mid>o.c?'g':'r'}">${eur(mid-o.c)} ${mid>o.c?'günstiger':'teurer'} als der Median der Strecke, inkl. Umweg</div>`:'';
     const arr=hhmm(o.arr);
     return card(o.s,prOf(o.s),null,
       `<div class="facts"><span class="rk" aria-label="Platz ${i+1}">${i+1}</span><span aria-label="bei Kilometer ${Math.round(o.at)}">${ic('pin')}km ${Math.round(o.at)}</span><span aria-label="Fahrzeit ${dur(o.sec)}">${ic('clock')}${dur(o.sec)}</span><span aria-label="Ankunft ${arr} Uhr">${ic('flag')}${arr}</span></div>`+
@@ -872,12 +886,53 @@ function renderRoute(){
   loadPois(top);
 }
 $('#rf').onsubmit=e=>{e.preventDefault();calcRoute()};
-$('#rs').value=LS.get('rStart','');$('#rd').value=LS.get('rDest','');$('#rc').value=String(LS.get('rCorr',2));
+$('#rc').value=String(LS.get('rCorr',2));
 $('#rr').addEventListener('input',()=>{if(route)renderRoute()});
 $('#rnoon').checked=LS.get('rNoon',false);
 $('#rnoon').onchange=()=>{LS.set('rNoon',$('#rnoon').checked);if(route)renderRoute()};
 $('#rdep').addEventListener('input',()=>{if(route)renderRoute()});
-$('#rswap').onclick=()=>{const a=$('#rs').value;$('#rs').value=$('#rd').value;$('#rd').value=a};
+$('#rswap').onclick=()=>{
+  const a=$('#rs'),b=$('#rd'),v=a.value,{lat,lng}=a.dataset;
+  setPlace(a,b.value,b.dataset.lat&&{lat:b.dataset.lat,lng:b.dataset.lng});setPlace(b,v,lat&&{lat,lng});
+};
+/* Vorschläge beim Tippen von Start/Ziel (TomTom-Suche mit typeahead; Nominatim erlaubt keine Autovervollständigung).
+   Eine gewählte Position wird am Feld gemerkt und später ohne erneute Suche verwendet. */
+function setPlace(el,v,pos){
+  el.value=v;
+  if(pos){el.dataset.lat=pos.lat;el.dataset.lng=pos.lng}else{delete el.dataset.lat;delete el.dataset.lng}
+}
+setPlace($('#rs'),LS.get('rStart',''),LS.get('rSPos',null));setPlace($('#rd'),LS.get('rDest',''),LS.get('rDPos',null));
+let acT,acN=0,acFor=null;
+const acHide=()=>{$('#ac').hidden=true;acFor=null};
+async function suggest(el){
+  const q=el.value.trim(),n=++acN;
+  if(q.length<3||!S.tt)return acHide();
+  const c=S.me||[map.getCenter().lat,map.getCenter().lng];
+  try{
+    const j=await (await fetch(`https://api.tomtom.com/search/2/search/${encodeURIComponent(q)}.json?key=${encodeURIComponent(S.tt)}&typeahead=true&limit=6&countrySet=DE&language=de-DE&lat=${c[0]}&lon=${c[1]}`)).json();
+    if(n!==acN||document.activeElement!==el)return;
+    const items=(j.results||[]).filter(x=>x.position).map(x=>{
+      const a=x.address||{},main=x.poi?.name||a.freeformAddress||q;
+      return{main,sub:x.poi?a.freeformAddress:[a.countrySecondarySubdivision,a.countrySubdivision].filter(Boolean).join(', '),
+        value:x.poi?[x.poi.name,a.municipality].filter(Boolean).join(', '):a.freeformAddress||q,lat:x.position.lat,lng:x.position.lon};
+    });
+    if(!items.length)return acHide();
+    acFor={el,items};
+    const box=$('#ac');box.style.top=(el.offsetTop+el.offsetHeight+2)+'px';
+    box.innerHTML=items.map((x,i)=>`<button type="button" role="option" data-ac="${i}">${esc(x.main)}${x.sub&&x.sub!==x.main?`<span>${esc(x.sub)}</span>`:''}</button>`).join('');
+    box.hidden=false;
+  }catch{acHide()}
+}
+for(const el of [$('#rs'),$('#rd')]){
+  el.addEventListener('input',()=>{delete el.dataset.lat;delete el.dataset.lng;clearTimeout(acT);acT=setTimeout(()=>suggest(el),350)});
+  el.addEventListener('blur',()=>setTimeout(()=>{if(acFor?.el===el)acHide()},200));
+  el.addEventListener('keydown',e=>{if(e.key==='Escape')acHide()});
+}
+$('#ac').addEventListener('pointerdown',e=>e.preventDefault());
+$('#ac').onclick=e=>{
+  const b=e.target.closest('[data-ac]');if(!b||!acFor)return;
+  const x=acFor.items[+b.dataset.ac];setPlace(acFor.el,x.value,x);acHide();
+};
 
 /* Gemerkte Routen („Strecke zu Oma“): Antippen rechnet sofort, lange drücken zum Umbenennen oder Löschen */
 function drawRfav(){
@@ -887,7 +942,8 @@ async function saveRoute(){
   const start=$('#rs').value.trim(),dest=$('#rd').value.trim();
   if(!start&&!dest)return $('#rstat').textContent='Erst Start oder Ziel eingeben, dann merken.';
   const nm=await ask({title:'Route merken',text:`${start||'Mein Standort'} → ${dest||'Mein Standort'}`,input:dest||start,ok:'Merken'});if(!nm)return;
-  S.routes.push({id:'r'+Date.now(),name:nm,start,dest,corr:+$('#rc').value});
+  const pos=el=>el.dataset.lat?{lat:+el.dataset.lat,lng:+el.dataset.lng}:null;
+  S.routes.push({id:'r'+Date.now(),name:nm,start,dest,corr:+$('#rc').value,sPos:pos($('#rs')),dPos:pos($('#rd'))});
   LS.set('routes',S.routes);drawRfav();
   $('#rstat').textContent='Gemerkt. Antippen berechnet die Route, lange drücken zum Umbenennen oder Löschen.';
 }
@@ -911,7 +967,7 @@ rfb.onclick=e=>{
   if(e.target.closest('[data-radd]'))return saveRoute();
   const b=e.target.closest('[data-rfav]');if(!b||$('#rgo').disabled)return;
   const r=S.routes.find(x=>x.id===b.dataset.rfav);if(!r)return;
-  $('#rs').value=r.start;$('#rd').value=r.dest;$('#rc').value=String(r.corr||2);calcRoute();
+  setPlace($('#rs'),r.start,r.sPos);setPlace($('#rd'),r.dest,r.dPos);$('#rc').value=String(r.corr||2);calcRoute();
 };
 drawRfav();
 $('#rsum').addEventListener('click',e=>{
@@ -923,6 +979,7 @@ function show(v){
   S.view=v;
   for(const k of['map','list','favs','route'])$('#'+k).hidden=k!==v;
   $('#views').hidden=v!=='map';
+  $('#sf').hidden=v==='route';if(v==='route')hideRes();
   $$('nav button').forEach(b=>b.classList.toggle('on',b.dataset.v===v));
   if(v==='map')map.invalidateSize();
   if(v==='list')list();
