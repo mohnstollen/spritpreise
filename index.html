@@ -320,7 +320,7 @@ dialog h4{margin:14px 0 6px}
       <option value="1000">im Umkreis von 1 km</option>
       <option value="2000">im Umkreis von 2 km</option>
     </select>
-    <p class="mut">Daten und Öffnungszeiten von TomTom (eine Abfrage je Tankstelle, gleicher Key wie für die Route). Antippen öffnet Google Maps zum Nachprüfen.</p>
+    <p class="mut">Daten und Öffnungszeiten von TomTom (eine Abfrage je Tankstelle, gleicher Key wie für die Route). Antippen öffnet in Google Maps die Route Standort → Tankstelle → Ort.</p>
     <div class="row"><button type="button" id="exp">Daten exportieren</button><button type="button" id="impb">Daten importieren</button></div>
     <div id="appbg" hidden>
       <label style="margin-top:12px">Widget zeigt
@@ -1012,7 +1012,11 @@ async function loadPois(list){
   rt.poiBusy=false;
   if(route===rt)renderRoute();
 }
-const poiUrl=x=>'https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(x.addr?`${x.name}, ${x.addr}`:`${x.lat.toFixed(5)},${x.lng.toFixed(5)}`);
+/* Antippen eines Orts: Google-Maps-Route „Mein Standort → Tankstelle → Ort“ (ohne origin nimmt Google den Standort).
+   Name mit Adresse, damit Google die Stopps lesbar anzeigt; ohne Adresse die Koordinaten. */
+const gPlace=(name,ad,lat,lng)=>ad?`${name}, ${ad}`:`${(+lat).toFixed(5)},${(+lng).toFixed(5)}`;
+const poiUrl=(x,s)=>'https://www.google.com/maps/dir/?api=1&travelmode=driving&destination='+encodeURIComponent(gPlace(x.name,x.addr,x.lat,x.lng))
+  +(s?'&waypoints='+encodeURIComponent(gPlace(s.brand||s.name||'Tankstelle',addr(s),s.lat,s.lng)):'');
 // Geöffnet bei Ankunft an der Tankstelle? Ohne Angaben von TomTom bleibt es offen.
 // Die Zeiten gelten 7 Tage ab Abfrage; danach wird derselbe Wochentag der Vorwochen genommen (Zwischenspeicher bis 14 Tage).
 function poiOpen(x,t){
@@ -1023,13 +1027,13 @@ function poiOpen(x,t){
   }
   return ' · zu bei Ankunft';
 }
-// Eine Zeile je Kategorie: „Name Entfernung, bis 20:00“, Namen öffnen Google Maps
-function poiChips(pr,t){
+// Eine Zeile je Kategorie: „Name Entfernung, bis 20:00“, Namen öffnen die Route über die Tankstelle
+function poiChips(pr,t,s){
   if(!pr.length)return '';
   const row=c=>pr.filter(x=>x.cat===c).map(x=>{
     const m=x.d<1000?`${Math.round(x.d/10)*10} m`:km(x.d/1000),op=poiOpen(x,t).replace(' · ',', '),zu=op.includes('zu')?' zu':'';
     const nm=x.name.length>22?x.name.slice(0,21).trimEnd()+'…':x.name;
-    return `<a href="${esc(poiUrl(x))}" class="${zu}" target="_blank" rel="noopener" title="${esc(x.name)}" aria-label="${esc(x.name)}, ${m}${esc(op)}, in Google Maps öffnen">${esc(nm)}</a> <span class="pm${zu}">${m}${op}</span>`;
+    return `<a href="${esc(poiUrl(x,s))}" class="${zu}" target="_blank" rel="noopener" title="${esc(x.name)}" aria-label="${esc(x.name)}, ${m}${esc(op)}, Route über die Tankstelle in Google Maps öffnen">${esc(nm)}</a> <span class="pm${zu}">${m}${op}</span>`;
   }).join(' · ');
   return `<div class="pois">${[...new Set(pr.map(x=>x.cat))].map(c=>`<div class="prow">${ic(POI[c].ic)}<span>${row(c)}</span></div>`).join('')}</div>`;
 }
@@ -1037,7 +1041,7 @@ function poiRow(o){
   if(!poiCats().length)return '';
   const pr=route.pois?.get(o.s.id);
   if(!pr)return route.poiErr?'':'<div class="pois mut">Suche Orte in der Nähe …</div>';
-  return poiChips(pr,o.arr);
+  return poiChips(pr,o.arr,o.s);
 }
 /* Popup auf der Karte: Fahrzeit und Ankunft vom Standort (TomTom, mit Verkehr) und Orte in der Nähe.
    Je Station und Standort 5 Minuten zwischengespeichert, damit wiederholtes Antippen nichts kostet. */
@@ -1065,7 +1069,7 @@ async function popupExtra(s,pop){
   put((!S.me?'<div class="facts mut">Fahrzeit: Standort unbekannt, ◎ antippen</div>'
     :d.err?`<div class="facts mut">Fahrzeit nicht verfügbar (TomTom: ${esc(d.err)})</div>`
     :`<div class="facts"><span aria-label="${km(d.lengthInMeters/1000)} Fahrt">${ic('pin')}${km(d.lengthInMeters/1000)}</span><span aria-label="Fahrzeit ${dur(d.travelTimeInSeconds)}">${ic('clock')}${dur(d.travelTimeInSeconds)}${dTxt(dl)}</span><span class="${dCls(dl)}" aria-label="Ankunft ${hhmm(arr)} Uhr">${ic('flag')}${hhmm(arr)}</span></div>`)
-    +(c.pois.err?`<div class="facts mut">Orte in der Nähe nicht verfügbar (TomTom: ${esc(c.pois.err)})</div>`:poiChips(c.pois,arr)));
+    +(c.pois.err?`<div class="facts mut">Orte in der Nähe nicht verfügbar (TomTom: ${esc(c.pois.err)})</div>`:poiChips(c.pois,arr,s)));
 }
 function renderRoute(){
   routeLayer.clearLayers();
