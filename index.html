@@ -642,15 +642,15 @@ function list(){
   a.sort(srt==='dist'?(x,y)=>x.d-y.d:srt==='save'?(x,y)=>(x.c??1e9)-(y.c??1e9)||x.d-y.d:(x,y)=>(x.pr[S.fuel]??99)-(y.pr[S.fuel]??99)||x.d-y.d);
   const sv=o=>{
     if(!calc||!base||o.c==null)return '';
-    if(o===base)return '<div class="sv mut">Vergleichswert: nächste Tankstelle ohne Autobahn-Aufschlag</div>';
-    const x=base.c-o.c,bn=esc(base.s.brand||base.s.name);
-    return Math.abs(x)<0.005?`<div class="sv mut">Kostet genauso viel wie ${bn}</div>`:`<div class="sv ${x>0?'g':'r'}">${eur(x)} ${x>0?'günstiger':'teurer'} als ${bn}, inkl. Umweg</div>`;
+    if(o===base)return '<div class="sv mut">Vergleichstankstelle (nächste ohne Autobahn-Aufschlag)</div>';
+    const x=base.c-o.c;
+    return Math.abs(x)<0.005?'<div class="sv mut">Kostet genauso viel wie die Vergleichstankstelle</div>':`<div class="sv ${x>0?'g':'r'}">${eur(x)} ${x>0?'günstiger':'teurer'} als die Vergleichstankstelle</div>`;
   };
   if(wp.length){
     const best=wp.reduce((m,o)=>o.pr[S.fuel]<m.pr[S.fuel]||(o.pr[S.fuel]===m.pr[S.fuel]&&o.d<m.d)?o:m);
     const hr=new Date().getHours();
     $('#sum').innerHTML=`Günstigste: <b>${fmt(best.pr[S.fuel])} €</b> bei ${esc(best.s.brand||best.s.name)}, ${km(best.d)} · Median <b>${fmt(mid)} €</b> · ${wp.length} ${wp.length===1?'Tankstelle':'Tankstellen'}`+
-      (calc&&base&&wp.length>1?`<div class="mut">Ersparnis im Vergleich zu ${esc(base.s.brand||base.s.name)}, ${km(base.d)} (nächste ohne Autobahn-Aufschlag)</div>`:'')+
+      (calc&&base&&wp.length>1?`<div class="mut">Vergleichstankstelle: ${esc([base.s.brand||base.s.name,[base.s.street,base.s.houseNumber].filter(Boolean).join(' ')].filter(Boolean).join(', '))} (${km(base.d)}), die nächste ohne Autobahn-Aufschlag. Ersparnis inkl. Umweg.</div>`:'')+
       (hr>=9&&hr<12?`<div class="facts warn">${ic('warn')}Ab 12 Uhr dürfen die Preise steigen, bis dahin ist es meist am günstigsten.</div>`:'');
   }
   $('#sum').hidden=!wp.length;
