@@ -277,7 +277,14 @@ dialog h4{margin:14px 0 6px}
         <option value="jam">Nur Staus und stockender Verkehr</option>
       </select>
     </label>
-    <p class="mut">Für den Button „Verkehr“ auf der Karte: grün = frei, orange = zähflüssig, rot = Stau. Derselbe Key schaltet auch den Button „Luftbild“ frei. Kostenlos bis 50.000 Kartenkacheln pro Tag.</p>
+    <label style="margin-top:12px">Unfälle und Baustellen auf der Karte
+      <select id="incf">
+        <option value="imp">Nur wichtige</option>
+        <option value="all">Alle Meldungen</option>
+        <option value="off">Keine</option>
+      </select>
+    </label>
+    <p class="mut">Für den Button „Verkehr“ auf der Karte: grün = frei, orange = zähflüssig, rot = Stau. Derselbe Key schaltet auch den Button „Luftbild“ frei. Kostenlos bis 200.000 Kartenkacheln pro Monat. „Nur wichtige“ Meldungen: Unfälle und Gefahren, dazu Sperrungen und Baustellen auf Autobahn und Bundesstraßen oder ab 5 Minuten Stau.</p>
     <label style="margin-top:12px">Startansicht
       <select id="start"></select>
     </label>
@@ -361,7 +368,7 @@ dialog h4{margin:14px 0 6px}
 <script>
 const $=s=>document.querySelector(s), $$=s=>document.querySelectorAll(s);
 const LS={get:(k,d)=>{try{return JSON.parse(localStorage.getItem(k))??d}catch{return d}},set:(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch{}}};
-const S={key:LS.get('key',''),fuel:LS.get('fuel','e5'),sort:LS.get('sort','dist'),favs:LS.get('favs',{}),fp:LS.get('fp',{}),hist:LS.get('hist',{}),wait:0,open:LS.get('open',false),grp:'all',groups:LS.get('groups',[{id:'default',name:'Allgemein'}]),order:[],views:LS.get('views',[]),lit:LS.get('lit',40),cons:LS.get('cons',7),hide:LS.get('hide',[]),noBAB:LS.get('noBAB',false),tt:LS.get('tt',''),traffic:LS.get('traffic',false),tstyle:LS.get('tstyle','all'),base:LS.get('base','osm'),alarms:LS.get('alarms',{}),wgrp:LS.get('wgrp','all'),bgint:LS.get('bgint',30),routes:LS.get('routes',[]),noonbuf:LS.get('noonbuf',15),pois:LS.get('pois',{}),poirad:LS.get('poirad',1000),nav:LS.get('nav',/iP(hone|ad|od)/.test(navigator.userAgent)?'apple':'google'),stations:[],me:null,view:'map'};
+const S={key:LS.get('key',''),fuel:LS.get('fuel','e5'),sort:LS.get('sort','dist'),favs:LS.get('favs',{}),fp:LS.get('fp',{}),hist:LS.get('hist',{}),wait:0,open:LS.get('open',false),grp:'all',groups:LS.get('groups',[{id:'default',name:'Allgemein'}]),order:[],views:LS.get('views',[]),lit:LS.get('lit',40),cons:LS.get('cons',7),hide:LS.get('hide',[]),noBAB:LS.get('noBAB',false),tt:LS.get('tt',''),traffic:LS.get('traffic',false),incf:LS.get('incf','imp'),tstyle:LS.get('tstyle','all'),base:LS.get('base','osm'),alarms:LS.get('alarms',{}),wgrp:LS.get('wgrp','all'),bgint:LS.get('bgint',30),routes:LS.get('routes',[]),noonbuf:LS.get('noonbuf',15),pois:LS.get('pois',{}),poirad:LS.get('poirad',1000),nav:LS.get('nav',/iP(hone|ad|od)/.test(navigator.userAgent)?'apple':'google'),stations:[],me:null,view:'map'};
 const FN={e5:'E5',e10:'E10',diesel:'Diesel'};
 const API='https://creativecommons.tankerkoenig.de/json/';
 const FRESH=120000;
@@ -465,10 +472,10 @@ DARK.addEventListener?.('change',()=>traffic?.setUrl(trafficUrl()));
    Erst ab Zoom 10 (wie die Preise erst beim Hineinzoomen), weil TomTom höchstens 10.000 km² je Abfrage erlaubt; ein etwas größerer Ausschnitt wird
    5 Minuten wiederverwendet, damit Verschieben nicht jedes Mal eine Anfrage kostet. Staus zeigt schon die Verkehrslage. */
 const incLayer=L.layerGroup().addTo(map);
-let incCov=null,incT,incErr='',incN=0;
+let incCov=null,incT,incErr='',incN=0,incData=[];
 const INC_FIELDS='{incidents{type,geometry{type,coordinates},properties{iconCategory,magnitudeOfDelay,events{description,code},startTime,endTime,from,to,length,delay,roadNumbers}}}';
 const kmArea=b=>(b.getNorth()-b.getSouth())*111.2*(b.getEast()-b.getWest())*111.2*Math.cos(b.getCenter().lat*Math.PI/180);
-function incReset(){incN++;incLayer.clearLayers();incCov=null;incErr=''}
+function incReset(){incN++;incLayer.clearLayers();incCov=null;incErr='';incData=[]}
 function incPop(pr,k,t0){
   const t=t0||INC[k][0],d=(pr.events||[]).map(e=>e.description).filter(Boolean).join(', '),end=pr.endTime&&new Date(pr.endTime);
   const meta=[pr.length>=100?km(pr.length/1000):'',pr.delay>=60?`+${Math.round(pr.delay/60)} min`:'',
@@ -479,7 +486,7 @@ function incPop(pr,k,t0){
     +(meta?`<br><span class="mut">${esc(meta)}</span>`:'');
 }
 async function incLoad(){
-  if(!S.traffic||!S.tt||incErr||!navigator.onLine)return;
+  if(!S.traffic||!S.tt||incErr||!navigator.onLine||S.incf==='off')return;
   const v=map.getBounds();
   if(map.getZoom()<10||kmArea(v)>9500){
     map.removeLayer(incLayer);return;
@@ -493,16 +500,24 @@ async function incLoad(){
     const j=await r.json().catch(()=>({}));
     if(!r.ok)throw new Error(`HTTP ${r.status}${(t=>t?': '+t:'')(j.detailedError?.message||j.error?.description||'')}`);
     if(n!==incN)return;
-    incCov={b,t:Date.now()};incLayer.clearLayers();
-    for(const x of j.incidents||[]){
-      const pr=x.properties||{},[k,t0]=ICAT[pr.iconCategory]||[],g=x.geometry;
-      if(!k||k==='jam')continue;
-      const c=g?.type==='Point'?g.coordinates:g?.coordinates?.[0];if(!c)continue;
-      L.marker([c[1],c[0]],{icon:incIcon(k),zIndexOffset:-1000,keyboard:false}).bindPopup(incPop(pr,k,t0),{maxWidth:260}).addTo(incLayer);
-    }
+    incCov={b,t:Date.now()};incData=j.incidents||[];incDraw();
   }catch(e){
     if(n!==incN||e instanceof TypeError)return;
     incErr=e.message;if(!e.message.startsWith('HTTP 429'))qShow(`Unfälle und Baustellen nicht verfügbar (TomTom: ${incErr}). Verkehrslage und Route funktionieren weiter.`);
+  }
+}
+/* „Nur wichtige“: Unfälle und Gefahren immer; Sperrungen, Baustellen und gesperrte Fahrstreifen nur auf
+   Autobahn (A…) oder Bundesstraße (B…) oder wenn sie mindestens 5 Minuten Stau verursachen.
+   So verschwinden die vielen kleinen Sperrungen in Wohnstraßen, die in Städten die Preise verdecken. */
+const incImp=(k,pr)=>k==='acc'||k==='haz'||(pr.roadNumbers||[]).some(r=>/^[AB]\s?\d/i.test(r))||(pr.delay||0)>=300;
+function incDraw(){
+  incLayer.clearLayers();
+  if(S.incf==='off')return;
+  for(const x of incData){
+    const pr=x.properties||{},[k,t0]=ICAT[pr.iconCategory]||[],g=x.geometry;
+    if(!k||k==='jam'||(S.incf!=='all'&&!incImp(k,pr)))continue;
+    const c=g?.type==='Point'?g.coordinates:g?.coordinates?.[0];if(!c)continue;
+    L.marker([c[1],c[0]],{icon:incIcon(k),zIndexOffset:-1000,keyboard:false}).bindPopup(incPop(pr,k,t0),{maxWidth:260}).addTo(incLayer);
   }
 }
 map.on('moveend',()=>{clearTimeout(incT);incT=setTimeout(incLoad,800)});
@@ -1198,7 +1213,7 @@ function openSettings(){
   $('#key').value=S.key;
   $('#tt').value=S.tt;
   $('#qset').textContent=`Diesen Monat über diese App (frei): ${qTxt()}. Echte Zahlen im Dashboard auf developer.tomtom.com.`;
-  $('#tstyle').value=S.tstyle;
+  $('#tstyle').value=S.tstyle;$('#incf').value=S.incf;
   $('#lit').value=S.lit?String(S.lit).replace('.',','):'';
   $('#cons').value=S.cons?String(S.cons).replace('.',','):'';
   $('#navapp').value=S.nav;
@@ -1235,7 +1250,7 @@ $('#flt').addEventListener('close',e=>{
 });
 
 /* Daten sichern und wiederherstellen */
-const KEYS=['favs','order','groups','views','start','lit','cons','fuel','sort','open','hide','noBAB','nav','hist','traffic','tstyle','base','alarms','wgrp','bgint','routes','noonbuf','pois','poirad'];
+const KEYS=['favs','order','groups','views','start','lit','cons','fuel','sort','open','hide','noBAB','nav','hist','traffic','tstyle','incf','base','alarms','wgrp','bgint','routes','noonbuf','pois','poirad'];
 async function exportData(){
   const data={app:'spritpreise',version:1,exported:new Date().toISOString()};
   KEYS.forEach(k=>{const v=LS.get(k,null);if(v!=null)data[k]=v});
@@ -1271,6 +1286,7 @@ $('#dlg').addEventListener('close',e=>{
   S.noonbuf=+$('#noonbuf').value;LS.set('noonbuf',S.noonbuf);
   S.pois={};for(const k in POI)S.pois[k]=$('#poi-'+k).checked;S.poirad=+$('#poirad').value;LS.set('pois',S.pois);LS.set('poirad',S.poirad);
   if(APP){S.wgrp=$('#wgrp').value;S.bgint=+$('#bgint').value;LS.set('wgrp',S.wgrp);LS.set('bgint',S.bgint)}
+  if($('#incf').value!==S.incf){S.incf=$('#incf').value;LS.set('incf',S.incf);incDraw();incLoad()}
   const tt=$('#tt').value.trim(),ts=$('#tstyle').value;
   if(ts!==S.tstyle){S.tstyle=ts;LS.set('tstyle',ts);if(tt===S.tt)setTraffic(S.traffic)}
   if(tt!==S.tt){S.tt=tt;LS.set('tt',tt);setTraffic(S.traffic||!!tt);setBase(S.base)}
