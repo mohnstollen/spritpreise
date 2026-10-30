@@ -868,7 +868,7 @@ async function tomtomRoute(a,b){
   const delay=rt.summary.trafficDelayInSeconds||0;
   // Meldungen (Unfall, Baustelle, Sperrung …) aus denselben Abschnitten, mit Ursache nach TPEG-TEC
   const incs=(rt.sections||[]).filter(x=>x.sectionType==='TRAFFIC').map(x=>({a:at(x.startPointIndex),b:at(x.endPointIndex),
-    p:pts[Math.min(Math.max(x.startPointIndex,0),pts.length-1)],...incKind(x.simpleCategory,x.tec?.causes?.[0]?.mainCauseCode),delay:x.delayInSeconds||0}))
+    p:pts[Math.min(Math.max(x.startPointIndex,0),pts.length-1)],q:pts[Math.min(Math.max(x.endPointIndex,0),pts.length-1)],...incKind(x.simpleCategory,x.tec?.causes?.[0]?.mainCauseCode),delay:x.delayInSeconds||0}))
     .filter(x=>x.k!=='jam'||x.delay>=60).sort((x,y)=>x.a-y.a);
   return{pts,km,sec,prof,jams,delay,delayKnown:jams.length>0||delay<60,incs};
 }
@@ -929,8 +929,41 @@ async function calcRoute(){
     for(const x of all.values()){const pr=project(rt,[x.lat,x.lng]);if(pr.d<=corr)cands.push({s:x,off:pr.d,at:pr.km})}
     route={...rt,a,b,all,cands,corr,dName:dest,t:Date.now()};
     st('');renderRoute();
+    incNames(route);
   }catch(e){st(e instanceof TypeError?'Keine Verbindung. Bitte später erneut versuchen.':e.message)}
   finally{$('#rgo').disabled=false}
+}
+/* Meldungen der Route mit Straße und Anschlussstellen benennen („A3 · Kreuz Nürnberg-Ost → Lauf/Hersbruck“):
+   Die Routenberechnung liefert nur Lage und Art. Darum die Incident Details rund um die Meldungen abfragen
+   (aufeinanderfolgende Meldungen in gemeinsamen Ausschnitten bis 9.000 km², meist 1–3 Anfragen) und über die
+   Position zuordnen: nächste Meldung bis 500 m, gleiche Art bevorzugt. Ohne Treffer bleibt es bei „km …“. */
+async function incNames(rt){
+  if(!rt.incs?.length||!S.tt)return;
+  const pad=0.02,boxes=[];
+  for(const x of rt.incs){
+    const pb=L.latLngBounds([x.p,x.q]).pad(0).extend([x.p[0]-pad,x.p[1]-pad]).extend([x.q[0]+pad,x.q[1]+pad]).extend([x.p[0]+pad,x.p[1]+pad]).extend([x.q[0]-pad,x.q[1]-pad]);
+    const last=boxes[boxes.length-1],m=last&&L.latLngBounds(last.getSouthWest(),last.getNorthEast()).extend(pb);
+    if(m&&kmArea(m)<=9000)boxes[boxes.length-1]=m;else boxes.push(pb);
+  }
+  const found=[];
+  try{
+    for(const b of boxes.slice(0,6)){
+      const r=await ttFetch(`https://api.tomtom.com/traffic/services/5/incidentDetails?key=${encodeURIComponent(S.tt)}&bbox=${[b.getWest(),b.getSouth(),b.getEast(),b.getNorth()].map(v=>v.toFixed(5)).join()}&fields=${encodeURIComponent(INC_FIELDS)}&language=de-DE&timeValidityFilter=present`);
+      if(!r.ok)return;
+      found.push(...((await r.json()).incidents||[]));
+    }
+  }catch{return}
+  if(route!==rt)return;
+  for(const x of rt.incs){
+    let best=null,bd=Infinity;
+    for(const f of found){
+      const g=f.geometry,cs=g?.type==='Point'?[g.coordinates]:g?.coordinates||[],k=(ICAT[f.properties?.iconCategory]||[])[0];
+      const d=Math.min(...cs.map(c=>Math.min(dist(x.p,[c[1],c[0]]),dist(x.q,[c[1],c[0]]))))+(k===x.k||(k==='lane'&&x.k==='work')||(k==='work'&&x.k==='lane')?0:0.3);
+      if(d<bd){bd=d;best=f}
+    }
+    if(best&&bd<=0.5){const pr=best.properties;Object.assign(x,{road:(pr.roadNumbers||[]).join(', '),from:pr.from||'',to:pr.to||''})}
+  }
+  renderRoute();
 }
 // Abfahrt aus dem Feld (heute, oder morgen, falls die Uhrzeit schon vorbei ist); leer = Zeitpunkt der Berechnung
 function departure(){
@@ -1085,8 +1118,10 @@ function renderRoute(){
   top.forEach((o,i)=>L.marker([o.s.lat,o.s.lng],{zIndexOffset:2000-i,icon:L.divIcon({className:'',iconSize:[0,0],html:`<div class="pin g">${i+1}. ${fmt(o.p)}</div>`})}).bindPopup(card(o.s,prOf(o.s),null),{minWidth:250,autoPanPaddingTopLeft:[10,64]}).addTo(routeLayer));
   route.bounds=line.getBounds();
   const incs=route.incs||[],incKm=x=>x.b-x.a>=1?`km ${Math.round(x.a)}–${Math.round(x.b)}`:`km ${Math.round(x.a)}`;
-  const incLine=x=>`${x.t} · ${incKm(x)}${x.delay>=60?` · +${Math.round(x.delay/60)} min`:''}`;
-  for(const x of incs)L.marker(x.p,{icon:incIcon(x.k),zIndexOffset:1000,keyboard:false}).bindPopup(`<b>${esc(x.t)}</b><br>${esc(incLine(x).split(' · ').slice(1).join(' · '))} der Route`).addTo(routeLayer);
+  // Mit Anschlussstellen: „Baustelle · A3 Nürnberg-Behringersdorf → Lauf-West (km 24–25)“, sonst „Baustelle · km 24–25“
+  const incWhere=x=>{const ft=[x.from,x.to].filter(Boolean).join(' → '),rd=[x.road,ft].filter(Boolean).join(' ');return rd?`${rd} (${incKm(x)})`:incKm(x)};
+  const incLine=x=>`${x.t} · ${incWhere(x)}${x.delay>=60?` · +${Math.round(x.delay/60)} min`:''}`;
+  for(const x of incs)L.marker(x.p,{icon:incIcon(x.k),zIndexOffset:1000,keyboard:false}).bindPopup(`<b>${esc(x.t)}</b><br>${esc(incLine(x).split(' · ').slice(1).join(' · '))}`).addTo(routeLayer);
   const incRow=x=>`<div class="irow"><span class="inc" style="background:${INC[x.k][2]}">${ic(INC[x.k][1])}</span>${esc(incLine(x))}</div>`;
   const incInfo=incs.length?`<div class="incs"><b>${incs.length} ${incs.length===1?'Meldung':'Meldungen'} auf der Strecke</b>${incs.slice(0,4).map(incRow).join('')}${incs.length>4?`<details><summary>${incs.length-4} weitere</summary>${incs.slice(4).map(incRow).join('')}</details>`:''}</div>`:'';
   const rngInfo=ranked.rng?`<div class="sv ${ranked.rng<route.km?'r':'mut'}">${ranked.rng<route.km?`Deine Reichweite endet bei km ${Math.round(ranked.rng)}, das Ziel liegt dahinter: unterwegs tanken.`:'Das Ziel liegt innerhalb deiner Reichweite.'}${ranked.out?` ${ranked.out} ${ranked.out===1?'Tankstelle':'Tankstellen'} dahinter ausgeblendet.`:''}</div>`:'';
