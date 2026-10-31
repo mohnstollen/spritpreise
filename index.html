@@ -252,6 +252,9 @@ dialog h4{margin:14px 0 6px}
         <label>Abfahrt <input type="time" id="rdep" aria-label="Abfahrt (leer = jetzt)"></label>
         <label><input type="checkbox" id="rnoon"> nur vor 12 Uhr erreichbar</label>
       </div>
+      <div class="ropt" id="rpf" role="group" aria-label="Nur Tankstellen mit Orten in der Nähe">Nur mit:
+        <label><input type="checkbox" data-rpf="sm"> Supermarkt</label><label><input type="checkbox" data-rpf="ff"> Fast Food</label><label><input type="checkbox" data-rpf="bk"> Bäcker</label>
+      </div>
     </form>
     <p id="rstat" class="mut" role="status"></p>
     <div id="rsum"></div>
@@ -605,8 +608,8 @@ function navUrl(s){
   return 'https://www.google.com/maps/dir/?api=1&destination='+ll;
 }
 
-function card(s,pr,d,extra=''){
-  const id=esc(s.id),u=navUrl(s),fav=!!S.favs[s.id];
+function card(s,pr,d,extra='',nav=null){
+  const id=esc(s.id),u=nav||navUrl(s),fav=!!S.favs[s.id];
   const all=['e5','e10','diesel'].map(k=>`<span class="${k===S.fuel?'sel':''}">${FN[k]} ${fmt(pr[k])}</span>`).join('');
   return `<div class="card"><div class="r1"><b>${esc(s.brand||s.name)}</b><span class="p">${fmt(pr[S.fuel])}</span></div>
   <div class="mut">${esc(s.brand&&s.name!==s.brand?s.name+', ':'')}${esc(addr(s))}${d!=null?' · '+km(d)+' Luftlinie':''}${pr.open===false?' · geschlossen':''}</div>
@@ -977,12 +980,12 @@ function nextNoon(t){const d=new Date(t);d.setHours(12,0,0,0);if(d.getTime()<=t)
 // Sortierung nach Kosten inkl. Umweg (mit Umwegrechner) oder Preis; berücksichtigt Sorte, Filter, Restreichweite und 12-Uhr-Regel.
 // Umweg in Minuten grob mit 40 km/h; erreichbar ist, was bis Tankstelle (Strecke + Abstand) in der Reichweite liegt.
 function rankRoute(){
-  const calc=calcOn(),rng=num($('#rr').value),dep=departure(),noon=nextNoon(route.t),only=$('#rnoon').checked;let out=0,late=0;
-  const r=route.cands.filter(o=>vis(o.s)&&n(o.s[S.fuel])!=null).map(o=>{
+  const calc=calcOn(),rng=num($('#rr').value),dep=departure(),noon=nextNoon(route.t),only=$('#rnoon').checked;let out=0,late=0,hid=0;
+  const r=route.cands.filter(o=>n(o.s[S.fuel])!=null).filter(o=>vis(o.s)||!++hid).map(o=>{
     const p=n(o.s[S.fuel]),det=2*1.3*o.off,at=o.at*route.scale,sec=timeAt(at),dmin=Math.round(det*1.5),arr=dep+sec*1000;
     return{...o,at,p,det,sec,dmin,arr,delay:route.delayKnown?delayAt(at):null,risk:arr+(dmin/2+S.noonbuf)*60000>=noon,c:calc?p*(S.lit+det*S.cons/100):p};
   }).filter(o=>!rng||o.at+1.3*o.off<=rng||!++out).filter(o=>!only||!o.risk||!++late).sort((x,y)=>x.c-y.c||x.at-y.at);
-  Object.assign(r,{out,late,rng,dep,only});
+  Object.assign(r,{out,late,hid,rng,dep,only});
   return r;
 }
 /* Orte in der Nähe der Top-Tankstellen über die TomTom-Umkreissuche (eine Anfrage je Tankstelle, alle Kategorien).
@@ -993,6 +996,10 @@ const POI={
   bk:{ic:'bread',label:'Bäcker',cat:9361018}
 };
 const poiCats=()=>Object.keys(POI).filter(k=>S.pois[k]);
+// Route: in den Einstellungen gewählte Kategorien plus die, nach denen gefiltert wird („Nur mit: Supermarkt“)
+let rpf=LS.get('rpf',{});
+const rpfCats=()=>Object.keys(POI).filter(k=>rpf[k]);
+const rCats=()=>Object.keys(POI).filter(k=>S.pois[k]||rpf[k]);
 const ttTime=t=>{const [y,m,d]=t.date.split('-').map(Number);return new Date(y,m-1,d,t.hour,t.minute).getTime()};
 /* Orte in der Nähe 14 Tage je Tankstelle, Kategorien und Umkreis speichern: Supermärkte ziehen selten um,
    und die Suche ist das knappste TomTom-Kontingent. Höchstens 300 Tankstellen, die ältesten fliegen raus. */
@@ -1005,9 +1012,10 @@ function poiCache(k,v){
   poiC=Object.fromEntries(Object.entries(poiC).filter(([,e])=>now-e.t<POI_TTL).sort((a,b)=>b[1].t-a[1].t).slice(0,300));
   try{LS.set('poic',poiC)}catch{}
 }
-// Je Kategorie bis zu 3 Orte im Umkreis einer Tankstelle, mit Öffnungszeiten der nächsten 7 Tage
+// Je Kategorie bis zu 3 Orte im Umkreis einer Tankstelle, mit Öffnungszeiten der nächsten 7 Tage.
+// Immer alle Kategorien in einer Anfrage: Umschalten von Kategorien oder Filtern kostet dann keine neue Suche.
 async function poisNear(s){
-  const cats=poiCats(),ck=[s.id||`${s.lat.toFixed(4)},${s.lng.toFixed(4)}`,cats.join(),S.poirad].join('|'),hit=poiCache(ck);
+  const cats=Object.keys(POI),ck=[s.id||`${s.lat.toFixed(4)},${s.lng.toFixed(4)}`,cats.join(),S.poirad].join('|'),hit=poiCache(ck);
   if(hit)return hit;
   const r=await ttFetch(`https://api.tomtom.com/search/2/nearbySearch/.json?key=${encodeURIComponent(S.tt)}&lat=${s.lat}&lon=${s.lng}&radius=${S.poirad}&categorySet=${cats.map(c=>POI[c].cat).join(',')}&limit=100&openingHours=nextSevenDays&language=de-DE`);
   const j=await r.json().catch(()=>({}));
@@ -1029,8 +1037,8 @@ async function poisNear(s){
   return res;
 }
 async function loadPois(list){
-  const cats=poiCats(),rt=route;if(!cats.length||!rt||!S.tt)return;
-  const key=cats.join()+'|'+S.poirad;
+  const rt=route;if(!rCats().length||!rt||!S.tt)return;
+  const key=String(S.poirad);
   if(rt.poiKey!==key)Object.assign(rt,{poiKey:key,pois:new Map(),poiErr:''});
   const todo=list.filter(o=>!rt.pois.has(o.s.id));
   if(!todo.length||rt.poiErr||rt.poiBusy)return;
@@ -1075,10 +1083,11 @@ function poiChips(pr,t,s,end){
   return `<div class="pois">${[...new Set(pr.map(x=>x.cat))].map(c=>`<div class="prow">${ic(POI[c].ic)}<span>${row(c)}</span></div>`).join('')}</div>`;
 }
 function poiRow(o){
-  if(!poiCats().length)return '';
+  if(!rCats().length)return '';
   const pr=route.pois?.get(o.s.id);
   if(!pr)return route.poiErr?'':'<div class="pois mut">Suche Orte in der Nähe …</div>';
-  return poiChips(pr,o.arr,o.s,{name:route.dName,lat:route.b.lat,lng:route.b.lng});
+  const cs=rCats();
+  return poiChips(pr.filter(x=>cs.includes(x.cat)),o.arr,o.s,{name:route.dName,lat:route.b.lat,lng:route.b.lng});
 }
 /* Popup auf der Karte: Fahrzeit und Ankunft vom Standort (TomTom, mit Verkehr) und Orte in der Nähe.
    Je Station und Standort 5 Minuten zwischengespeichert, damit wiederholtes Antippen nichts kostet. */
@@ -1106,16 +1115,30 @@ async function popupExtra(s,pop){
   put((!S.me?'<div class="facts mut">Fahrzeit: Standort unbekannt, ◎ antippen</div>'
     :d.err?`<div class="facts mut">Fahrzeit nicht verfügbar (TomTom: ${esc(d.err)})</div>`
     :`<div class="facts"><span aria-label="${km(d.lengthInMeters/1000)} Fahrt">${ic('pin')}${km(d.lengthInMeters/1000)}</span><span aria-label="Fahrzeit ${dur(d.travelTimeInSeconds)}">${ic('clock')}${dur(d.travelTimeInSeconds)}${dTxt(dl)}</span><span class="${dCls(dl)}" aria-label="Ankunft ${hhmm(arr)} Uhr">${ic('flag')}${hhmm(arr)}</span></div>`)
-    +(c.pois.err?`<div class="facts mut">Orte in der Nähe nicht verfügbar (TomTom: ${esc(c.pois.err)})</div>`:poiChips(c.pois,arr,s)));
+    +(c.pois.err?`<div class="facts mut">Orte in der Nähe nicht verfügbar (TomTom: ${esc(c.pois.err)})</div>`:poiChips(c.pois.filter(x=>poiCats().includes(x.cat)),arr,s)));
 }
 function renderRoute(){
   routeLayer.clearLayers();
   if(!route){$('#rsum').innerHTML='';$('#ritems').innerHTML='';return}
-  const ranked=rankRoute(),top=ranked.slice(0,10),calc=calcOn();
+  const ranked=rankRoute(),calc=calcOn(),end={name:route.dName,lat:route.b.lat,lng:route.b.lng};
+  /* „Nur mit: Supermarkt …“: der Reihe nach die günstigsten prüfen, bis 10 passende gefunden sind; ein Ort zählt nur,
+     wenn er bei Ankunft nicht geschlossen ist. Höchstens 30 Tankstellen je Route nachschlagen (Suchkontingent). */
+  const need=S.tt&&!route.poiErr?rpfCats():[],pv=route.poiKey===String(S.poirad)&&route.pois,RPF_MAX=30;
+  let top=ranked.slice(0,10),pend=[],poiOut=0,capped=false;
+  if(need.length){
+    top=[];let budget=RPF_MAX-(pv?pv.size:0);
+    for(const o of ranked){
+      if(top.length+pend.length>=10)break;
+      const pr=pv&&pv.get(o.s.id);
+      if(!pr){if(budget-->0)pend.push(o);else{capped=true;break}continue}
+      if(need.every(c=>pr.some(x=>x.cat===c&&!poiOpen(x,o.arr).includes('zu'))))top.push(o);else poiOut++;
+    }
+  }
+  const navR=s=>S.nav==='google'?'https://www.google.com/maps/dir/?api=1&travelmode=driving&destination='+encodeURIComponent(end.name||gPlace('','',end.lat,end.lng))+'&waypoints='+encodeURIComponent(gPlace(s.brand||s.name||'Tankstelle',addr(s),s.lat,s.lng)):null;
   const mid=ranked.length?median(ranked.map(o=>o.c)):0;
   const line=L.polyline(route.pts,{color:'#2f7bf5',weight:5,opacity:.8}).addTo(routeLayer);
   for(const [p,c] of [[[route.a.lat,route.a.lng],'#2f7bf5'],[[route.b.lat,route.b.lng],'#d64545']])L.circleMarker(p,{radius:8,color:'#fff',weight:3,fillColor:c,fillOpacity:1}).addTo(routeLayer);
-  top.forEach((o,i)=>L.marker([o.s.lat,o.s.lng],{zIndexOffset:2000-i,icon:L.divIcon({className:'',iconSize:[0,0],html:`<div class="pin g">${i+1}. ${fmt(o.p)}</div>`})}).bindPopup(card(o.s,prOf(o.s),null),{minWidth:250,autoPanPaddingTopLeft:[10,64]}).addTo(routeLayer));
+  top.forEach((o,i)=>L.marker([o.s.lat,o.s.lng],{zIndexOffset:2000-i,icon:L.divIcon({className:'',iconSize:[0,0],html:`<div class="pin g">${i+1}. ${fmt(o.p)}</div>`})}).bindPopup(card(o.s,prOf(o.s),null,'',navR(o.s)),{minWidth:250,autoPanPaddingTopLeft:[10,64]}).addTo(routeLayer));
   route.bounds=line.getBounds();
   const incs=route.incs||[],incKm=x=>x.b-x.a>=1?`km ${Math.round(x.a)}–${Math.round(x.b)}`:`km ${Math.round(x.a)}`;
   // Mit Anschlussstellen: „Baustelle · A3 Nürnberg-Behringersdorf → Lauf-West (km 24–25)“, sonst „Baustelle · km 24–25“
@@ -1129,22 +1152,23 @@ function renderRoute(){
   const noonInfo=ranked.dep>=nextNoon(route.t)?`<div class="facts warn">${ic('warn')}Du fährst nach 12 Uhr los. Die Preise sind von davor: Route nach 12 Uhr neu berechnen, dann stimmen sie.</div>`
     :ranked.late?`<div class="facts warn">${ic('warn')}${ranked.late} ${ranked.late===1?'Tankstelle':'Tankstellen'} nach 12 Uhr ausgeblendet (inkl. ${S.noonbuf} min Puffer).</div>`
     :risky?`<div class="facts warn">${ic('warn')}Bei ${risky} ${risky===1?'Tankstelle':'Tankstellen'} kommst du nach 12 Uhr an (inkl. ${S.noonbuf} min Puffer). Dort kann der Preis bis dahin gestiegen sein.</div>`:'';
-  $('#rsum').innerHTML=`<div class="sum">${km(route.km)} · ${dur(route.sec)}${route.delay>=60?`<span class="dl ${dCls(route.delay)}"> (+${Math.round(route.delay/60)} min Stau)</span>`:''} · ${ranked.length} ${ranked.length===1?'Tankstelle':'Tankstellen'} mit ${FN[S.fuel]} bis ${route.corr} km neben der Strecke${top[0]?` · günstigste <b>${fmt(top[0].p)} €</b>`:''}<div class="mut">Preise von ${hhmm(route.t)} Uhr · Abfahrt ${when(ranked.dep)}</div>${calcOn()&&ranked.length>1?`<div class="mut">Vergleich: mittlere Kosten aller Tankstellen der Strecke (Median) für ${String(S.lit).replace('.',',')} l, inkl. Umweg</div>`:''}${rngInfo}${noonInfo}${incInfo}${poiCats().length?`<div class="mut">${route.poiErr?`Orte in der Nähe konnten nicht geladen werden (TomTom: ${esc(route.poiErr)}).`:'Orte in der Nähe und Öffnungszeiten: TomTom'}</div>`:''}</div><div class="row"><button data-rmap>Auf Karte zeigen</button><button class="sec" data-rclear>Route löschen</button></div>`;
+  $('#rsum').innerHTML=`<div class="sum">${km(route.km)} · ${dur(route.sec)}${route.delay>=60?`<span class="dl ${dCls(route.delay)}"> (+${Math.round(route.delay/60)} min Stau)</span>`:''} · ${ranked.length} ${ranked.length===1?'Tankstelle':'Tankstellen'} mit ${FN[S.fuel]} bis ${route.corr} km neben der Strecke${top[0]?` · günstigste <b>${fmt(top[0].p)} €</b>`:''}<div class="mut">Preise von ${hhmm(route.t)} Uhr · Abfahrt ${when(ranked.dep)}</div>${ranked.hid?`<div class="mut">${ranked.hid} ${ranked.hid===1?'Tankstelle':'Tankstellen'} durch Filter ausgeblendet (${[S.open&&'nur offene',S.noBAB&&'ohne Autobahn',S.hide.length&&`${S.hide.length} ${S.hide.length===1?'Marke':'Marken'}`].filter(Boolean).join(', ')})</div>`:''}${need.length?`<div class="mut">Nur mit ${need.map(c=>POI[c].label).join(' und ')}, bei Ankunft geöffnet: ${pend.length?`prüfe weitere Tankstellen … (${top.length} gefunden)`:`${top.length} gefunden${poiOut?`, ${poiOut} ohne`:''}${capped?' (die günstigsten 30 geprüft)':''}`}</div>`:''}${calcOn()&&ranked.length>1?`<div class="mut">Vergleich: mittlere Kosten aller Tankstellen der Strecke (Median) für ${String(S.lit).replace('.',',')} l, inkl. Umweg</div>`:''}${rngInfo}${noonInfo}${incInfo}${rCats().length?`<div class="mut">${route.poiErr?`Orte in der Nähe konnten nicht geladen werden (TomTom: ${esc(route.poiErr)}).`:'Orte in der Nähe und Öffnungszeiten: TomTom'}</div>`:''}</div><div class="row"><button data-rmap>Auf Karte zeigen</button><button class="sec" data-rclear>Route löschen</button></div>`;
   $('#ritems').innerHTML=top.map((o,i)=>{
     const x=mid-o.c,sv=calc&&ranked.length>1&&Math.abs(x)>=0.005?`<div class="facts"><span class="${x>0?'g':'r'}" aria-label="${eur(x)} ${x>0?'günstiger':'teurer'} als der Median der Strecke, inklusive Umweg">${ic('euro')}${x>0?'−':'+'}${eur(x)} ggü. Median</span><span class="mut">inkl. Umweg</span></div>`:'';
     const arr=hhmm(o.arr);
     return card(o.s,prOf(o.s),null,
       `<div class="facts"><span class="rk" aria-label="Platz ${i+1}">${i+1}</span><span aria-label="bei Kilometer ${Math.round(o.at)}">${ic('pin')}km ${Math.round(o.at)}</span><span aria-label="Fahrzeit ${dur(o.sec)}${o.delay>=60?`, davon ${Math.round(o.delay/60)} Minuten Stau`:''}">${ic('clock')}${dur(o.sec)}${o.delay==null?'':dTxt(o.delay)}</span><span class="${o.delay==null?'':dCls(o.delay)}" aria-label="Ankunft ${arr} Uhr">${ic('flag')}${arr}</span></div>`+
       `<div class="facts mut"><span aria-label="${km(o.off)} neben der Strecke">${ic('side')}${km(o.off)} neben Strecke</span><span aria-label="Umweg ${km(o.det)}, ${o.dmin} Minuten">${ic('detour')}+${km(o.det)} · +${o.dmin} min</span></div>`+
-      (o.risk?`<div class="facts warn">${ic('warn')}Ankunft nach 12 Uhr: Preis kann bis dahin steigen</div>`:'')+sv+poiRow(o));
-  }).join('')||`<p class="empty">${ranked.late?'Keine passende Tankstelle vor 12 Uhr erreichbar.':ranked.out?'Keine passende Tankstelle innerhalb deiner Reichweite.':'Keine passende Tankstelle entlang der Strecke.'} Größeren Abstand wählen oder Filter prüfen.</p>`;
-  loadPois(top);
+      (o.risk?`<div class="facts warn">${ic('warn')}Ankunft nach 12 Uhr: Preis kann bis dahin steigen</div>`:'')+sv+poiRow(o),navR(o.s));
+  }).join('')||(pend.length?'':`<p class="empty">${need.length&&ranked.length?`Keine der günstigsten Tankstellen hat ${need.map(c=>POI[c].label).join(' und ')} in der Nähe, der bei Ankunft geöffnet ist. Umkreis unter ⚙ vergrößern oder Filter lockern.`:ranked.late?'Keine passende Tankstelle vor 12 Uhr erreichbar.':ranked.out?'Keine passende Tankstelle innerhalb deiner Reichweite.':'Keine passende Tankstelle entlang der Strecke.'}${need.length&&ranked.length?'':' Größeren Abstand wählen oder Filter prüfen.'}</p>`);
+  loadPois(need.length?pend:top);
 }
 $('#rf').onsubmit=e=>{e.preventDefault();calcRoute()};
 $('#rc').value=String(LS.get('rCorr',2));
 $('#rr').addEventListener('input',()=>{if(route)renderRoute()});
 $('#rnoon').checked=LS.get('rNoon',false);
 $('#rnoon').onchange=()=>{LS.set('rNoon',$('#rnoon').checked);if(route)renderRoute()};
+$$('#rpf input').forEach(i=>{i.checked=!!rpf[i.dataset.rpf];i.onchange=()=>{rpf[i.dataset.rpf]=i.checked;LS.set('rpf',rpf);if(route)renderRoute()}});
 $('#rdep').addEventListener('input',()=>{if(route)renderRoute()});
 $('#rswap').onclick=()=>{
   const a=$('#rs'),b=$('#rd'),v=a.value,{lat,lng}=a.dataset;
@@ -1277,7 +1301,8 @@ function syncFilter(){
   $('#flb').setAttribute('aria-pressed',S.noBAB||S.hide.length>0);
 }
 function openFilter(){
-  const cnt={};S.stations.forEach(s=>{const b=brandOf(s);cnt[b]=(cnt[b]||0)+1});
+  // Im Reiter Route die Marken entlang der Strecke zählen, sonst die des Kartenausschnitts
+  const cnt={};(S.view==='route'&&route?route.cands.map(o=>o.s):S.stations).forEach(s=>{const b=brandOf(s);cnt[b]=(cnt[b]||0)+1});
   S.hide.forEach(b=>cnt[b]=cnt[b]||0);
   const bs=Object.keys(cnt).sort((a,b)=>a==='Ohne Marke'?1:b==='Ohne Marke'?-1:a.localeCompare(b,'de'));
   $('#nobab').checked=S.noBAB;
