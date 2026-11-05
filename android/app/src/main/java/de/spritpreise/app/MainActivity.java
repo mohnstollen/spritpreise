@@ -3,12 +3,14 @@ package de.spritpreise.app;
 import android.Manifest;
 import android.app.Activity;
 import android.content.ActivityNotFoundException;
+import android.content.ComponentName;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.graphics.Insets;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.provider.Settings;
 import android.view.WindowInsets;
 import android.webkit.GeolocationPermissions;
 import android.webkit.JavascriptInterface;
@@ -23,6 +25,8 @@ import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.FrameLayout;
 import android.widget.Toast;
+
+import org.json.JSONObject;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -46,6 +50,9 @@ public class MainActivity extends Activity {
     private String geoOrigin;
     private ValueCallback<Uri[]> fileCallback;
     private String pendingSave;
+    /** Aufruf für die Web-App, der warten muss, bis die Seite geladen ist (z. B. aus dem Widget). */
+    private String pendingJs;
+    private boolean loaded;
 
     @Override
     protected void onCreate(Bundle state) {
@@ -83,6 +90,13 @@ public class MainActivity extends Activity {
             @Override
             public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest req) {
                 return serve(req.getUrl());
+            }
+
+            @Override
+            public void onPageFinished(WebView view, String url) {
+                loaded = true;
+                if (pendingJs != null) view.evaluateJavascript(pendingJs, null);
+                pendingJs = null;
             }
 
             @Override
@@ -130,6 +144,30 @@ public class MainActivity extends Activity {
         });
 
         if (state == null || web.restoreState(state) == null) web.loadUrl(START);
+        openFrom(getIntent());
+    }
+
+    @Override
+    protected void onNewIntent(Intent i) {
+        super.onNewIntent(i);
+        setIntent(i);
+        openFrom(i);
+    }
+
+    /** Aus Widget-Zeile oder Benachrichtigung: App bei dieser Tankstelle öffnen. */
+    private void openFrom(Intent i) {
+        if (i == null || !Prices.OPEN.equals(i.getAction())) return;
+        String id = i.getStringExtra("id");
+        i.setAction(null);
+        if (id == null) return;
+        String js = "window.appOpen&&appOpen(" + JSONObject.quote(id)
+                + (i.hasExtra("lat") ? "," + i.getDoubleExtra("lat", 0) + "," + i.getDoubleExtra("lng", 0) : "") + ")";
+        if (loaded) web.evaluateJavascript(js, null);
+        else pendingJs = js;
+    }
+
+    private Intent appDetails() {
+        return new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", getPackageName(), null));
     }
 
     /** Liefert App-Dateien und das mitgelieferte Leaflet aus den Assets; alles andere geht ins Netz. */
@@ -262,6 +300,41 @@ public class MainActivity extends Activity {
                     != PackageManager.PERMISSION_GRANTED) {
                 runOnUiThread(() -> requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, REQ_NOTIFY));
             }
+        }
+
+        @JavascriptInterface
+        public String status() {
+            return Prices.status(MainActivity.this);
+        }
+
+        @JavascriptInterface
+        public void refreshNow() {
+            Prices.refreshSoon(MainActivity.this);
+        }
+
+        /** Systemeinstellungen für die Freigaben, die der Hintergrund braucht. */
+        @JavascriptInterface
+        public void openSystem(String what) {
+            runOnUiThread(() -> {
+                Intent i;
+                if ("notify".equals(what) && Build.VERSION.SDK_INT >= 26) {
+                    i = new Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, getPackageName());
+                } else if ("autostart".equals(what)) {
+                    i = new Intent().setComponent(new ComponentName("com.miui.securitycenter",
+                            "com.miui.permcenter.autostart.AutoStartManagementActivity"));
+                } else {
+                    i = appDetails();
+                }
+                try {
+                    startActivity(i);
+                } catch (ActivityNotFoundException | SecurityException e) {
+                    try {
+                        startActivity(appDetails());
+                    } catch (ActivityNotFoundException e2) {
+                        Toast.makeText(MainActivity.this, "Einstellungen nicht gefunden", Toast.LENGTH_SHORT).show();
+                    }
+                }
+            });
         }
 
         @JavascriptInterface

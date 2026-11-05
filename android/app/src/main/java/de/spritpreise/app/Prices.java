@@ -12,10 +12,13 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.os.Build;
+import android.os.PowerManager;
 import android.text.SpannableString;
+import android.text.SpannableStringBuilder;
 import android.text.Spanned;
 import android.text.TextUtils;
 import android.text.format.DateUtils;
+import android.text.style.ForegroundColorSpan;
 import android.text.style.RelativeSizeSpan;
 import android.text.style.SuperscriptSpan;
 import android.view.View;
@@ -49,7 +52,10 @@ import java.util.Set;
  */
 final class Prices {
     static final String PRICES = "prices";
-    private static final String PREFS = "bg", CFG = "cfg", STATE = "alarmState", CHANNEL = "alarm";
+    private static final String PREFS = "bg", CFG = "cfg", STATE = "alarmState", CHANNEL = "alarm", STATUS = "status";
+    /** Intent-Aktion: App bei einer Tankstelle öffnen (Widget-Zeile, Benachrichtigung). */
+    static final String OPEN = "de.spritpreise.app.OPEN";
+    private static final String LIST = "https://creativecommons.tankerkoenig.de/json/list.php";
     static final int JOB_PERIODIC = 1, JOB_NOW = 2;
     private static final String API = "https://creativecommons.tankerkoenig.de/json/prices.php";
     private static final String[] FUELS = {"e5", "e10", "diesel"};
@@ -86,12 +92,30 @@ final class Prices {
         for (Iterator<String> it = in.keys(); it.hasNext(); ) {
             String id = it.next();
             JSONObject p = in.optJSONObject(id);
-            if (p != null && p.optLong("t") > obj(cur, id).optLong("t")) cur.put(id, p);
+            if (p != null && p.optLong("t") > obj(cur, id).optLong("t")) cur.put(id, merge(cur.optJSONObject(id), p));
         }
         put(c, PRICES, cur);
         put(c, CFG, cfg);
         updateWidgets(c);
         schedule(c);
+    }
+
+    /** Neuer Preis mit Trend: je Sorte die letzte Änderung (Differenz und Zeitpunkt), bis sich wieder etwas ändert. */
+    private static JSONObject merge(JSONObject old, JSONObject nu) throws JSONException {
+        JSONObject chg = old == null ? new JSONObject() : obj(old, "chg");
+        for (String f : FUELS) {
+            if (old == null || !old.has(f) || !nu.has(f)) continue;
+            double d = nu.optDouble(f) - old.optDouble(f);
+            if (Math.abs(d) > 0.0005) chg.put(f, new JSONObject().put("d", d).put("t", nu.optLong("t")));
+        }
+        nu.put("chg", chg);
+        return nu;
+    }
+
+    /** Umkreis-Alarm eingeschaltet und vollständig (Mittelpunkt und Grenze)? */
+    private static boolean areaOn(JSONObject cfg) {
+        JSONObject a = obj(cfg, "area");
+        return a.optBoolean("on") && a.has("lat") && a.has("lng") && a.optDouble("below", 0) > 0;
     }
 
     /** Alle Stationen, die im Hintergrund gebraucht werden: Widget-Favoriten und Alarme. */
@@ -113,8 +137,10 @@ final class Prices {
     static void schedule(Context c) {
         try {
             planPeriodic(c);
+            note(c, "planErr", "");
         } catch (RuntimeException e) {
             Log.w("Spritpreise", "Hintergrundabfrage nicht geplant", e);
+            note(c, "planErr", String.valueOf(e.getMessage()));
         }
     }
 
@@ -122,8 +148,8 @@ final class Prices {
         JobScheduler js = c.getSystemService(JobScheduler.class);
         JSONObject cfg = json(c, CFG);
         int minutes = cfg.optInt("interval", 30);
-        boolean need = !cfg.optString("key").isEmpty() && minutes > 0 && !ids(cfg).isEmpty()
-                && (obj(cfg, "alarms").length() > 0 || widgetIds(c).length > 0);
+        boolean need = !cfg.optString("key").isEmpty() && minutes > 0 && (areaOn(cfg) || !ids(cfg).isEmpty()
+                && (obj(cfg, "alarms").length() > 0 || widgetIds(c).length > 0));
         if (!need) {
             js.cancel(JOB_PERIODIC);
             return;
@@ -149,12 +175,13 @@ final class Prices {
         }
     }
 
-    /** Im Hintergrund: Preise holen (je 10 Stationen pro Anfrage), Alarme prüfen, Widgets aktualisieren. */
-    static synchronized void refresh(Context c) throws IOException, JSONException {
+    /** Im Hintergrund: Preise holen (je 10 Stationen pro Anfrage), Alarme prüfen, Widgets aktualisieren,
+     *  Umkreis-Alarm prüfen. Liefert die Zahl der abgefragten Stationen, -1 wenn nichts zu tun war. */
+    static synchronized int refresh(Context c) throws IOException, JSONException {
         JSONObject cfg = json(c, CFG);
         String key = cfg.optString("key");
         List<String> ids = ids(cfg);
-        if (key.isEmpty() || ids.isEmpty()) return;
+        if (key.isEmpty() || ids.isEmpty() && !areaOn(cfg)) return -1;
         JSONObject cur = json(c, PRICES);
         long t = System.currentTimeMillis();
         for (int i = 0; i < ids.size(); i += 10) {
@@ -173,12 +200,101 @@ final class Prices {
                 }
                 o.put("open", !"closed".equals(p.optString("status")));
                 o.put("t", t);
-                cur.put(id, o);
+                cur.put(id, merge(cur.optJSONObject(id), o));
             }
         }
         put(c, PRICES, cur);
-        checkAlarms(c, cfg, cur);
+        JSONObject old = json(c, STATE), state = new JSONObject();
+        checkAlarms(c, cfg, cur, old, state);
         updateWidgets(c);
+        // Zustand des Umkreis-Alarms behalten, falls dessen Abfrage scheitert (sonst käme die Meldung doppelt)
+        for (Iterator<String> it = old.keys(); it.hasNext(); ) {
+            String k = it.next();
+            if (k.startsWith("area|")) state.put(k, old.optBoolean(k));
+        }
+        try {
+            checkArea(c, cfg, key, old, state);
+        } finally {
+            put(c, STATE, state);
+        }
+        return ids.size();
+    }
+
+    /** Umkreis-Alarm: günstigste geöffnete Tankstelle im Umkreis (eine Abfrage); meldet einmal,
+     *  erneut erst, nachdem der Preis wieder über der Grenze lag. */
+    private static void checkArea(Context c, JSONObject cfg, String key, JSONObject old, JSONObject state)
+            throws IOException, JSONException {
+        if (!areaOn(cfg)) return;
+        JSONObject a = obj(cfg, "area");
+        String fuel = a.optString("fuel", "e5");
+        double below = a.optDouble("below"), lat = a.optDouble("lat"), lng = a.optDouble("lng");
+        int rad = Math.max(1, Math.min(25, a.optInt("rad", 10)));
+        JSONObject r = new JSONObject(get(LIST + "?lat=" + lat + "&lng=" + lng + "&rad=" + rad + "&sort=price&type=" + fuel
+                + "&apikey=" + URLEncoder.encode(key, "UTF-8")));
+        if (!r.optBoolean("ok")) throw new IOException(r.optString("message", "API-Fehler"));
+        JSONArray st = r.optJSONArray("stations");
+        JSONObject best = null;
+        for (int i = 0; st != null && i < st.length(); i++) {
+            JSONObject s = st.optJSONObject(i);
+            if (s == null || !s.optBoolean("isOpen", true)) continue;
+            double p = s.optDouble("price", 0);
+            if (p > 0 && (best == null || p < best.optDouble("price"))) best = s;
+        }
+        String sk = "area|" + lat + "|" + lng + "|" + rad + "|" + fuel + "|" + below;
+        boolean was = old.optBoolean(sk);
+        state.remove(sk);
+        if (best == null) {
+            if (was) state.put(sk, true);
+            return;
+        }
+        double v = best.optDouble("price");
+        note(c, "area", best.optString("brand", best.optString("name")).trim() + " " + euro(v));
+        if (v <= below + 1e-9) {
+            if (!was) notifyArea(c, best, fuel, v, below);
+            state.put(sk, true);
+        } else if (v <= below + 0.0049 && was) {
+            state.put(sk, true);
+        }
+    }
+
+    /** Ein Wert im Status für die Anzeige in den Einstellungen. */
+    static void note(Context c, String k, Object v) {
+        try {
+            JSONObject s = json(c, STATUS);
+            s.put(k, v);
+            put(c, STATUS, s);
+        } catch (JSONException e) {
+            // Status ist nur Anzeige
+        }
+    }
+
+    /** Ergebnis eines Hintergrundlaufs merken (err == null: erfolgreich, n: Zahl der Stationen). */
+    static void ran(Context c, String err, int n) {
+        try {
+            JSONObject s = json(c, STATUS);
+            s.put("run", System.currentTimeMillis());
+            s.put("err", err == null ? "" : err);
+            if (err == null) s.put("n", n);
+            put(c, STATUS, s);
+        } catch (JSONException e) {
+            // Status ist nur Anzeige
+        }
+    }
+
+    /** Für die Einstellungen: letzter Lauf, Planung und die Systemfreigaben, die der Hintergrund braucht. */
+    static String status(Context c) {
+        JSONObject s = json(c, STATUS);
+        try {
+            JobInfo p = c.getSystemService(JobScheduler.class).getPendingJob(JOB_PERIODIC);
+            s.put("planned", p != null ? p.getIntervalMillis() / 60_000L : 0);
+            s.put("notify", c.getSystemService(NotificationManager.class).areNotificationsEnabled());
+            s.put("battery", c.getSystemService(PowerManager.class).isIgnoringBatteryOptimizations(c.getPackageName()));
+            s.put("widgets", widgetIds(c).length);
+            s.put("maker", Build.MANUFACTURER);
+        } catch (JSONException | RuntimeException e) {
+            // Unvollständiger Status ist besser als keiner
+        }
+        return s.toString();
     }
 
     private static String get(String url) throws IOException {
@@ -196,8 +312,9 @@ final class Prices {
     }
 
     /** Meldet einen Preis einmal, wenn er die Grenze erreicht; erneut erst, nachdem er wieder darüber lag. */
-    private static void checkAlarms(Context c, JSONObject cfg, JSONObject cur) throws JSONException {
-        JSONObject alarms = obj(cfg, "alarms"), old = json(c, STATE), state = new JSONObject();
+    private static void checkAlarms(Context c, JSONObject cfg, JSONObject cur, JSONObject old, JSONObject state)
+            throws JSONException {
+        JSONObject alarms = obj(cfg, "alarms");
         for (Iterator<String> it = alarms.keys(); it.hasNext(); ) {
             String id = it.next();
             JSONObject a = obj(alarms, id), p = cur.optJSONObject(id);
@@ -218,7 +335,6 @@ final class Prices {
                 state.put(sk, true);
             }
         }
-        put(c, STATE, state);
     }
 
     private static String fuelName(String f) {
@@ -229,15 +345,18 @@ final class Prices {
         return String.format(Locale.GERMANY, "%.3f", v);
     }
 
+    private static Notification.Builder builder(Context c) {
+        if (Build.VERSION.SDK_INT >= 26) {
+            c.getSystemService(NotificationManager.class).createNotificationChannel(
+                    new NotificationChannel(CHANNEL, "Preisalarm", NotificationManager.IMPORTANCE_DEFAULT));
+            return new Notification.Builder(c, CHANNEL);
+        }
+        return new Notification.Builder(c);
+    }
+
     private static void notify(Context c, String id, JSONObject name, String fuel, double v, double below) {
         NotificationManager nm = c.getSystemService(NotificationManager.class);
-        Notification.Builder b;
-        if (Build.VERSION.SDK_INT >= 26) {
-            nm.createNotificationChannel(new NotificationChannel(CHANNEL, "Preisalarm", NotificationManager.IMPORTANCE_DEFAULT));
-            b = new Notification.Builder(c, CHANNEL);
-        } else {
-            b = new Notification.Builder(c);
-        }
+        Notification.Builder b = builder(c);
         String place = name.optString("p");
         b.setSmallIcon(R.drawable.ic_stat_pump)
                 .setContentTitle(name.optString("n", "Tankstelle") + (place.isEmpty() ? "" : " " + place)
@@ -245,8 +364,31 @@ final class Prices {
                 .setContentText("Auf oder unter deiner Alarmgrenze von " + euro(below) + " €")
                 .setShowWhen(true)
                 .setAutoCancel(true)
-                .setContentIntent(openApp(c));
+                .setContentIntent(openStation(c, id, Double.NaN, Double.NaN, 1000 + (id.hashCode() & 0xffff)));
         nm.notify(id.hashCode(), b.build());
+    }
+
+    private static void notifyArea(Context c, JSONObject s, String fuel, double v, double below) {
+        String brand = s.optString("brand").trim(), place = s.optString("place").trim();
+        if (brand.isEmpty()) brand = s.optString("name", "Tankstelle").trim();
+        Notification.Builder b = builder(c);
+        b.setSmallIcon(R.drawable.ic_stat_pump)
+                .setContentTitle("Umkreis: " + brand + (place.isEmpty() ? "" : " " + place)
+                        + ": " + fuelName(fuel) + " " + euro(v) + " €")
+                .setContentText(String.format(Locale.GERMANY, "%.1f km vom Mittelpunkt · Grenze %s €",
+                        s.optDouble("dist", 0), euro(below)))
+                .setShowWhen(true)
+                .setAutoCancel(true)
+                .setContentIntent(openStation(c, s.optString("id"), s.optDouble("lat"), s.optDouble("lng"), 900));
+        c.getSystemService(NotificationManager.class).notify("area".hashCode(), b.build());
+    }
+
+    /** App bei einer Tankstelle öffnen: Favorit in der Liste, sonst Karte an der Position (lat/lng). */
+    static PendingIntent openStation(Context c, String id, double lat, double lng, int req) {
+        Intent i = new Intent(c, MainActivity.class).setAction(OPEN).putExtra("id", id)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+        if (!Double.isNaN(lat)) i.putExtra("lat", lat).putExtra("lng", lng);
+        return PendingIntent.getActivity(c, req, i, PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
     }
 
     private static PendingIntent openApp(Context c) {
@@ -276,6 +418,15 @@ final class Prices {
         return sp;
     }
 
+    /** Pfeil vor dem Preis, wenn er sich in den letzten 24 Stunden geändert hat: ↓ grün, ↑ rot. */
+    private static CharSequence trend(CharSequence price, JSONObject ch) {
+        if (!ch.has("d") || System.currentTimeMillis() - ch.optLong("t") > 86_400_000L) return price;
+        boolean down = ch.optDouble("d") < 0;
+        SpannableStringBuilder sb = new SpannableStringBuilder(down ? "↓ " : "↑ ");
+        sb.setSpan(new ForegroundColorSpan(down ? 0xff3ccf7a : 0xffff6b6b), 0, 1, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+        return sb.append(price);
+    }
+
     static RemoteViews render(Context c) {
         RemoteViews v = new RemoteViews(c.getPackageName(), R.layout.widget);
         JSONObject cfg = json(c, CFG), cur = json(c, PRICES), names = obj(cfg, "names");
@@ -296,10 +447,11 @@ final class Prices {
             if (p != null) {
                 newest = Math.max(newest, p.optLong("t"));
                 if (!p.optBoolean("open", true)) pt = "zu";
-                else if (p.has(fuel)) pt = price(p.optDouble(fuel));
+                else if (p.has(fuel)) pt = trend(price(p.optDouble(fuel)), obj(obj(p, "chg"), fuel));
             }
             v.setTextViewText(VALUES[i], pt);
             v.setViewVisibility(ROWS[i], View.VISIBLE);
+            v.setOnClickPendingIntent(ROWS[i], openStation(c, id, Double.NaN, Double.NaN, 100 + i));
         }
         v.setViewVisibility(R.id.empty, n == 0 ? View.VISIBLE : View.GONE);
         v.setTextViewText(R.id.title, "Spritpreise · " + fuelName(fuel));
