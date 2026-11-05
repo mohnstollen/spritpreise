@@ -11,7 +11,7 @@ public class PriceWidget extends AppWidgetProvider {
 
     @Override
     public void onUpdate(Context c, AppWidgetManager m, int[] ids) {
-        m.updateAppWidget(ids, Prices.render(c));
+        Prices.updateWidgets(c);
         Prices.schedule(c);
     }
 

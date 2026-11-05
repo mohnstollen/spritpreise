@@ -226,8 +226,12 @@ public class MainActivity extends Activity {
     @Override
     protected void onResume() {
         super.onResume();
-        Prices.updateWidgets(this);
-        Prices.schedule(this);
+        try {
+            Prices.updateWidgets(this);
+            Prices.schedule(this);
+        } catch (RuntimeException e) {
+            // Widget und Hintergrundabfrage sind Zusatz: die App selbst muss immer starten
+        }
     }
 
     @Override
