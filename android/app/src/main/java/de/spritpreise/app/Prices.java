@@ -19,6 +19,7 @@ import android.text.format.DateUtils;
 import android.text.style.RelativeSizeSpan;
 import android.text.style.SuperscriptSpan;
 import android.view.View;
+import android.util.Log;
 import android.widget.RemoteViews;
 
 import org.json.JSONArray;
@@ -89,8 +90,8 @@ final class Prices {
         }
         put(c, PRICES, cur);
         put(c, CFG, cfg);
-        schedule(c);
         updateWidgets(c);
+        schedule(c);
     }
 
     /** Alle Stationen, die im Hintergrund gebraucht werden: Widget-Favoriten und Alarme. */
@@ -107,8 +108,17 @@ final class Prices {
         return AppWidgetManager.getInstance(c).getAppWidgetIds(new ComponentName(c, PriceWidget.class));
     }
 
-    /** Plant die regelmäßige Abfrage nur, wenn es etwas zu tun gibt (Key und Alarm oder Widget). */
+    /** Plant die regelmäßige Abfrage nur, wenn es etwas zu tun gibt (Key und Alarm oder Widget).
+     *  Fehler beim Planen (z. B. vom System verweigert) dürfen die App nie abstürzen lassen. */
     static void schedule(Context c) {
+        try {
+            planPeriodic(c);
+        } catch (RuntimeException e) {
+            Log.w("Spritpreise", "Hintergrundabfrage nicht geplant", e);
+        }
+    }
+
+    private static void planPeriodic(Context c) {
         JobScheduler js = c.getSystemService(JobScheduler.class);
         JSONObject cfg = json(c, CFG);
         int minutes = cfg.optInt("interval", 30);
@@ -130,9 +140,13 @@ final class Prices {
 
     /** Einmalige Abfrage, sobald Netz da ist (Widget-Kopfzeile, neues Widget). */
     static void refreshSoon(Context c) {
-        c.getSystemService(JobScheduler.class).schedule(new JobInfo.Builder(JOB_NOW, new ComponentName(c, PriceJob.class))
-                .setRequiredNetworkType(JobInfo.NETWORK_TYPE_ANY)
-                .build());
+        try {
+            c.getSystemService(JobScheduler.class).schedule(new JobInfo.Builder(JOB_NOW, new ComponentName(c, PriceJob.class))
+                    .setRequiredNetworkType(JobInfo.NETWORK_TYPE_ANY)
+                    .build());
+        } catch (RuntimeException e) {
+            Log.w("Spritpreise", "Sofortabfrage nicht geplant", e);
+        }
     }
 
     /** Im Hintergrund: Preise holen (je 10 Stationen pro Anfrage), Alarme prüfen, Widgets aktualisieren. */
@@ -241,8 +255,12 @@ final class Prices {
     }
 
     static void updateWidgets(Context c) {
-        int[] ids = widgetIds(c);
-        if (ids.length > 0) AppWidgetManager.getInstance(c).updateAppWidget(ids, render(c));
+        try {
+            int[] ids = widgetIds(c);
+            if (ids.length > 0) AppWidgetManager.getInstance(c).updateAppWidget(ids, render(c));
+        } catch (RuntimeException e) {
+            Log.w("Spritpreise", "Widget nicht gezeichnet", e);
+        }
     }
 
     private static final int[] ROWS = {R.id.r1, R.id.r2, R.id.r3, R.id.r4, R.id.r5};
