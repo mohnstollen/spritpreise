@@ -119,6 +119,12 @@ dialog select{display:block;width:100%;margin-top:6px;padding:10px;border:1px so
 .sv{margin-top:6px;font-size:14px;font-weight:600}
 .sv.g{color:var(--good)}.sv.r{color:var(--bad)}
 .two{display:flex;gap:10px;margin-top:12px}
+.bgstat{margin-top:12px;border:1px solid var(--line);border-radius:10px;padding:8px 10px;font-size:14px}
+.bgstat div{display:flex;gap:8px;align-items:center;justify-content:space-between;padding:3px 0}
+.bgstat .bad{color:var(--bad);font-weight:600}.bgstat .ok{color:var(--good)}
+.bgstat button{font-size:13px;padding:4px 8px;flex:none}
+.card.hl{outline:3px solid var(--amber);outline-offset:1px}
+.facts.bt{flex-wrap:nowrap;align-items:flex-start;gap:6px}.facts.bt .ic{margin-top:2px}.facts.bt span{display:inline}
 .two label{flex:1;min-width:0}
 @media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important}}
 .leaflet-container{background:var(--bg)}
@@ -338,6 +344,14 @@ dialog h4{margin:14px 0 6px}
         </select>
       </label>
       <p class="mut">Fragt nur die Favoriten im Widget und mit Preisalarm ab. Android kann die Abfrage zum Akkusparen verzögern. Den Alarm stellst du bei einem Favoriten mit 🔔 ein.</p>
+      <label class="chk" style="margin-top:12px"><input type="checkbox" id="aon"> <b>Umkreis-Alarm:</b>&nbsp;melden, wenn irgendeine Tankstelle im Umkreis die Grenze erreicht</label>
+      <div class="two"><label>Sorte <select id="afuel"><option value="e5">Super E5</option><option value="e10">Super E10</option><option value="diesel">Diesel</option></select></label>
+        <label>Grenze in € <input id="abelow" inputmode="decimal" autocomplete="off" placeholder="z. B. 1,85" pattern="\s*[0-9]([.,][0-9]{1,3})?\s*" title="Preis in Euro, z. B. 1,85"></label></div>
+      <label style="margin-top:8px">Umkreis <select id="arad"><option value="5">5 km</option><option value="10">10 km</option><option value="15">15 km</option><option value="25">25 km</option></select></label>
+      <p class="mut" id="actr" style="margin-bottom:4px"></p>
+      <div class="row"><button type="button" id="ame">Mein Standort als Mittelpunkt</button><button type="button" id="amap">Kartenmitte</button></div>
+      <p class="mut">Eine Tankerkönig-Abfrage je Hintergrundlauf. Gemeldet wird einmal; erneut erst, nachdem der Preis wieder über der Grenze lag.</p>
+      <div id="bgstat" class="bgstat" aria-live="polite"></div>
     </div>
     <div class="row" id="appver" hidden><span class="mut">App-Version <b id="appverv"></b></span><button type="button" id="updchk">Nach Updates suchen</button></div>
     <input type="file" id="imp" accept="application/json,.json" hidden>
@@ -389,6 +403,8 @@ const hhmm=ms=>new Date(ms).toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2
 const when=ms=>{const d=new Date(ms);return (d.toDateString()===new Date().toDateString()?'':d.toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit'})+' ')+hhmm(ms)+' Uhr'};
 const msg=t=>{$('#msg').textContent=t||''};
 const num=v=>{const x=parseFloat(String(v).replace(',','.'));return x>0?x:0};
+// Umkreis-Alarm (nur App): {on,fuel,below,rad,lat,lng,src,t}
+let AREA=LS.get('area',{}),aDraft=null;
 const eur=x=>Math.abs(x).toFixed(2).replace('.',',')+' €';
 const median=a=>{const s=[...a].sort((x,y)=>x-y),m=s.length>>1;return s.length%2?s[m]:(s[m-1]+s[m])/2};
 const ic=n=>`<svg class="ic" aria-hidden="true"><use href="#i-${n}"/></svg>`;
@@ -629,7 +645,7 @@ function pins(){
     const m=L.marker([s.lat,s.lng],{icon:L.divIcon({className:'',iconSize:[0,0],html:`<div class="pin ${c}">${fmt(x)}</div>`})})
       .bindPopup(card(s,p,null,stand+(S.tt?'<div class="pext"></div>':'')),{minWidth:250,autoPanPaddingTopLeft:[10,64]}).on('popupopen',e=>popupExtra(s,e.popup)).addTo(layer);
     m.getElement()?.setAttribute('aria-label',`${s.brand||s.name}, ${x==null?'kein Preis':x.toFixed(3).replace('.',',')+' Euro'}`);
-    marks.push({m,x});
+    marks.push({m,x,id:s.id});
   });
   declutter();
 }
@@ -692,7 +708,7 @@ function syncNative(){
   }
   const wg=S.groups.some(g=>g.id===S.wgrp)?S.wgrp:'all';
   const widget=S.order.filter(id=>wg==='all'||gOf(id)===wg).slice(0,5);
-  try{Android.syncConfig(JSON.stringify({key:S.key,fuel:S.fuel,interval:S.bgint,widget,alarms,names,prices}))}catch{}
+  try{Android.syncConfig(JSON.stringify({key:S.key,fuel:S.fuel,interval:S.bgint,widget,alarms,names,prices,area:AREA}))}catch{}
 }
 function syncSoon(){if(APP){clearTimeout(syncT);syncT=setTimeout(syncNative,400)}}
 function pullNative(){
@@ -761,6 +777,26 @@ function spark(id){
   return `<div class="spk"><svg viewBox="0 0 300 36" preserveAspectRatio="none" role="img" aria-label="Preisverlauf ${esc(span)}: ${lo.toFixed(3).replace('.',',')} bis ${hi.toFixed(3).replace('.',',')} Euro" data-spk="${esc(id)}"><path d="${d}" vector-effect="non-scaling-stroke"/></svg><span class="mut" data-lbl="${esc(lbl)}">${lbl}</span></div>`;
 }
 
+/* Beste Tankzeit aus dem gespeicherten Preisverlauf (bis 30 Tage): je vollständigem Tag mit Daten der Abstand
+   jeder Stunde (6–22 Uhr) zum Tageshoch, gemittelt; das günstigste 2-Stunden-Fenster. Erst ab 3 Tagen und 2 ct. */
+function bestTime(id){
+  const k={e5:1,e10:2,diesel:3}[S.fuel],pts=(S.hist[id]||[]).filter(e=>e[k]!=null);
+  if(pts.length<4)return '';
+  const at=t=>{let v=null;for(const e of pts){if(e[0]>t)break;v=e[k]}return v};
+  const days=new Set(pts.map(e=>{const d=new Date(e[0]);return new Date(d.getFullYear(),d.getMonth(),d.getDate()).getTime()}));
+  const sum=Array(24).fill(0);let n=0;
+  for(const d0 of days){
+    if(d0+23*36e5>Date.now()||at(d0+6*36e5)==null)continue;
+    const v=[];for(let H=6;H<=22;H++)v[H]=at(d0+H*36e5+18e5);
+    const mx=Math.max(...v.slice(6));for(let H=6;H<=22;H++)sum[H]+=v[H]-mx;n++;
+  }
+  if(n<3)return '';
+  let best=6,bv=Infinity;
+  for(let H=6;H<22;H++){const a=(sum[H]+sum[H+1])/2/n;if(a<bv-1e-9){bv=a;best=H}}
+  const ct=Math.round(-bv*100);
+  return ct<2?'':`<div class="facts mut bt" aria-label="Meist am günstigsten von ${best} bis ${best+2} Uhr, etwa ${ct} Cent unter dem Tageshoch, aus ${n} Tagen">${ic('clock')}<span>Meist am günstigsten <b>${best}–${best+2} Uhr</b>, ca. ${ct} ct unter dem Tageshoch (aus ${n} Tagen)</span></div>`;
+}
+
 function drawFavs(){
   const r=ref();
   const chips=[{id:'all',name:'Alle'},...S.groups].map(g=>`<button data-g="${esc(g.id)}" class="${g.id===S.grp?'on':''}">${esc(g.name)}</button>`).join('');
@@ -769,7 +805,7 @@ function drawFavs(){
   const ts=ids.map(id=>S.fp[id]?.t).filter(Boolean);
   const opts=id=>S.groups.map(g=>`<option value="${esc(g.id)}"${g.id===gOf(id)?' selected':''}>${esc(g.name)}</option>`).join('');
   $('#favs').innerHTML=`<div class="grpbar">${chips}<button data-gact="add">＋ Gruppe</button>${tools}</div>`+(ts.length?`<p class="mut" style="margin:0 0 8px">Stand ${when(Math.min(...ts))}</p>`:'')+
-    (ids.length?ids.map(id=>{const s=S.favs[id],a=S.alarms[id];return card(s,S.fp[id]||{},dist(r,[s.lat,s.lng]),spark(id)+(APP&&a?`<div class="sv mut">🔔 Alarm bei ${FN[a.fuel]} ≤ ${fmt(a.below)} €</div>`:'')+`<div class="mv"><button data-mv="-1" data-id="${esc(id)}" aria-label="Nach oben">▲</button><button data-mv="1" data-id="${esc(id)}" aria-label="Nach unten">▼</button>${APP?`<button data-alarm="${esc(id)}" aria-label="Preisalarm" aria-pressed="${!!a}">🔔</button>`:''}<select data-sel="${esc(id)}" aria-label="Gruppe">${opts(id)}</select></div>`)}).join(''):'<p class="empty">Keine Favoriten in dieser Ansicht. Tippe bei einer Tankstelle auf ☆.</p>');
+    (ids.length?ids.map(id=>{const s=S.favs[id],a=S.alarms[id];return card(s,S.fp[id]||{},dist(r,[s.lat,s.lng]),spark(id)+bestTime(id)+(APP&&a?`<div class="sv mut">🔔 Alarm bei ${FN[a.fuel]} ≤ ${fmt(a.below)} €</div>`:'')+`<div class="mv"><button data-mv="-1" data-id="${esc(id)}" aria-label="Nach oben">▲</button><button data-mv="1" data-id="${esc(id)}" aria-label="Nach unten">▼</button>${APP?`<button data-alarm="${esc(id)}" aria-label="Preisalarm" aria-pressed="${!!a}">🔔</button>`:''}<select data-sel="${esc(id)}" aria-label="Gruppe">${opts(id)}</select></div>`)}).join(''):'<p class="empty">Keine Favoriten in dieser Ansicht. Tippe bei einer Tankstelle auf ☆.</p>');
 }
 async function favs(){
   drawFavs();
@@ -1290,6 +1326,10 @@ function openSettings(){
   $('#appbg').hidden=!APP;
   $('#wgrp').innerHTML='<option value="all">Alle Favoriten (die ersten 5)</option>'+S.groups.map(g=>`<option value="${esc(g.id)}">Gruppe ${esc(g.name)}</option>`).join('');
   $('#wgrp').value=S.groups.some(g=>g.id===S.wgrp)?S.wgrp:'all';$('#bgint').value=String(S.bgint);
+  if(APP){
+    $('#aon').checked=!!AREA.on;$('#afuel').value=AREA.fuel||S.fuel;$('#abelow').value=AREA.below?String(AREA.below).replace('.',','):'';
+    $('#arad').value=String(AREA.rad||10);$('#abelow').required=$('#aon').checked;aDraft=AREA.lat!=null?{lat:AREA.lat,lng:AREA.lng,src:AREA.src,t:AREA.t}:null;aLabel();bgStatus();
+  }
   const cur=LS.get('start','');
   $('#start').innerHTML='<option value="">Mein Standort</option>'+S.views.map(v=>`<option value="${esc(v.id)}"${v.id===cur?' selected':''}>${esc(v.name)}</option>`).join('');
   d.showModal();
@@ -1318,7 +1358,7 @@ $('#flt').addEventListener('close',e=>{
 });
 
 /* Daten sichern und wiederherstellen */
-const KEYS=['favs','order','groups','views','start','lit','cons','fuel','sort','open','hide','noBAB','nav','hist','traffic','tstyle','incf','base','alarms','wgrp','bgint','routes','noonbuf','pois','poirad'];
+const KEYS=['favs','order','groups','views','start','lit','cons','fuel','sort','open','hide','noBAB','nav','hist','traffic','tstyle','incf','base','alarms','wgrp','bgint','area','routes','noonbuf','pois','poirad'];
 async function exportData(){
   const data={app:'spritpreise',version:1,exported:new Date().toISOString()};
   KEYS.forEach(k=>{const v=LS.get(k,null);if(v!=null)data[k]=v});
@@ -1353,13 +1393,67 @@ $('#dlg').addEventListener('close',e=>{
   S.nav=$('#navapp').value;LS.set('nav',S.nav);
   S.noonbuf=+$('#noonbuf').value;LS.set('noonbuf',S.noonbuf);
   S.pois={};for(const k in POI)S.pois[k]=$('#poi-'+k).checked;S.poirad=+$('#poirad').value;LS.set('pois',S.pois);LS.set('poirad',S.poirad);
-  if(APP){S.wgrp=$('#wgrp').value;S.bgint=+$('#bgint').value;LS.set('wgrp',S.wgrp);LS.set('bgint',S.bgint)}
+  if(APP){
+    S.wgrp=$('#wgrp').value;S.bgint=+$('#bgint').value;LS.set('wgrp',S.wgrp);LS.set('bgint',S.bgint);
+    const on=$('#aon').checked,below=num($('#abelow').value);
+    if(on&&!aDraft)aDraft=aCenter(S.me?'me':'map');
+    AREA={on:on&&below>0,fuel:$('#afuel').value,below,rad:+$('#arad').value,...(aDraft||{})};LS.set('area',AREA);
+    if(AREA.on)Android.requestNotify?.();
+  }
   if($('#incf').value!==S.incf){S.incf=$('#incf').value;LS.set('incf',S.incf);incDraw();incLoad()}
   const tt=$('#tt').value.trim(),ts=$('#tstyle').value;
   if(ts!==S.tstyle){S.tstyle=ts;LS.set('tstyle',ts);if(tt===S.tt)setTraffic(S.traffic)}
   if(tt!==S.tt){S.tt=tt;LS.set('tt',tt);setTraffic(S.traffic||!!tt);setBase(S.base)}
   msg('');redraw();load(true);syncNative();
 });
+/* Umkreis-Alarm: Mittelpunkt aus Standort oder Kartenmitte, beim Speichern übernommen */
+function aCenter(src){
+  const c=src==='me'&&S.me?{lat:S.me[0],lng:S.me[1]}:map.getCenter();
+  return{lat:+c.lat.toFixed(5),lng:+c.lng.toFixed(5),src:src==='me'&&S.me?'me':'map',t:Date.now()};
+}
+function aLabel(){
+  $('#actr').textContent=aDraft?`Mittelpunkt: ${aDraft.src==='me'?'dein Standort':'Kartenmitte'} vom ${new Date(aDraft.t||Date.now()).toLocaleDateString('de-DE')} (${aDraft.lat.toFixed(3).replace('.',',')} / ${aDraft.lng.toFixed(3).replace('.',',')})`:'Mittelpunkt: beim Speichern dein Standort, sonst die Kartenmitte';
+}
+$('#ame').onclick=()=>{if(!S.me){msg('Standort unbekannt: auf der Karte ◎ antippen');setTimeout(()=>msg(''),4000);return}aDraft=aCenter('me');aLabel()};
+$('#amap').onclick=()=>{aDraft=aCenter('map');aLabel()};
+// Mit Umkreis-Alarm lässt sich nur mit Grenze speichern
+$('#aon').onchange=()=>{$('#abelow').required=$('#aon').checked};
+
+/* Hintergrund-Status in den Einstellungen (nur App): letzter Lauf, Planung und die nötigen Systemfreigaben */
+const bgErr=e=>/UnknownHost|Connect|Timeout|SocketException|SSL/i.test(e)?'keine Verbindung':e.replace(/^\w+Exception: /,'');
+function bgStatus(){
+  if(!APP||!window.Android?.status)return;
+  let s;try{s=JSON.parse(Android.status())}catch{return}
+  const late=s.run&&s.planned&&Date.now()-s.run>3*s.planned*6e4,xi=/xiaomi|redmi|poco/i.test(s.maker||'');
+  const row=(k,v,cls='',btn='')=>`<div><span>${k}: <span class="${cls}">${v}</span></span>${btn}</div>`;
+  const b=(w,t)=>`<button type="button" data-sys="${w}">${t}</button>`;
+  $('#bgstat').innerHTML='<b>Hintergrund-Status</b>'
+    +row('Letzte Abfrage',!s.run?'noch keine':esc(when(s.run))+(s.err?` – ${esc(bgErr(s.err))}`:s.n>0?` ✓ ${s.n} ${s.n===1?'Tankstelle':'Tankstellen'}`:' ✓')+(late?' – verzögert':''),s.err||late?'bad':s.run?'ok':'')
+    +row('Geplant',s.planErr?'nein – '+esc(s.planErr):s.planned?`alle ${s.planned} min`:'nein (kein Widget, Preisalarm oder Umkreis-Alarm)',s.planErr?'bad':'')
+    +row('Benachrichtigungen',s.notify?'erlaubt':'blockiert',s.notify?'ok':'bad',s.notify?'':b('notify','Erlauben'))
+    +row('Akku',s.battery?'keine Einschränkung':'eingeschränkt',s.battery?'ok':'bad',s.battery?'':b('battery','Ändern'))
+    +(xi?row('Autostart','bei Xiaomi nötig','',b('autostart','Prüfen')):'')
+    +(s.area?row('Umkreis zuletzt',esc(s.area).replace(/(\d)\.(\d)/,'$1,$2')+' €'):'')
+    +`<div><span class="mut">${late?'Android hat die Abfrage verzögert: Akku und Autostart prüfen.':'Android kann Abfragen zum Akkusparen verzögern.'}</span><button type="button" id="bgnow">Jetzt abfragen</button></div>`;
+}
+$('#bgstat').addEventListener('click',e=>{
+  const w=e.target.closest('[data-sys]')?.dataset.sys;if(w)return Android.openSystem?.(w);
+  if(e.target.id==='bgnow'){syncNative();Android.refreshNow?.();e.target.textContent='Fragt ab …';e.target.disabled=true;setTimeout(bgStatus,8000)}
+});
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&$('#dlg').open)bgStatus()});
+
+/* Aus Widget-Zeile oder Benachrichtigung: Favorit in der Liste hervorheben, sonst Karte an der Tankstelle */
+window.appOpen=(id,lat,lng)=>{
+  $$('dialog').forEach(d=>d.open&&d.close());
+  if(S.favs[id]){
+    S.grp='all';show('favs');
+    setTimeout(()=>{const c=$(`#favs [data-fav="${CSS.escape(id)}"]`)?.closest('.card');if(!c)return;c.scrollIntoView({block:'center'});c.classList.add('hl');setTimeout(()=>c.classList.remove('hl'),3000)},300);
+  }else if(lat!=null){
+    show('map');map.setView([lat,lng],15,{animate:false});
+    Promise.resolve(load(true)).then(()=>marks.find(o=>o.id===id)?.m.openPopup());
+  }
+};
+
 /* Nach Rückkehr in die App veraltete Preise nachladen */
 document.addEventListener('visibilitychange',()=>{
   if(document.visibilityState!=='visible')return;
