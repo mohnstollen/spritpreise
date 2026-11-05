@@ -221,6 +221,15 @@ public class MainActivity extends Activity {
         web.saveState(out);
     }
 
+    /** Widgets bei jeder Rückkehr in die App aus der gespeicherten Konfiguration neu zeichnen: Manche Hersteller
+     *  (z. B. Xiaomi ohne „Autostart“) stellen dem Widget die Update-Nachricht beim Anlegen nicht zu. */
+    @Override
+    protected void onResume() {
+        super.onResume();
+        Prices.updateWidgets(this);
+        Prices.schedule(this);
+    }
+
     @Override
     protected void onDestroy() {
         web.destroy();

@@ -1363,7 +1363,7 @@ $('#dlg').addEventListener('close',e=>{
 /* Nach Rückkehr in die App veraltete Preise nachladen */
 document.addEventListener('visibilitychange',()=>{
   if(document.visibilityState!=='visible')return;
-  pullNative();
+  pullNative();syncNative(); // auch ein inzwischen angelegtes Widget sofort mit den Favoriten füllen
   if(S.view==='favs')favs();
   else if(lastQ&&Date.now()-lastQ.t>=300000)load();
 });
