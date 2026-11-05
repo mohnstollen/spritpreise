@@ -8,11 +8,15 @@ public class PriceJob extends JobService {
     @Override
     public boolean onStartJob(JobParameters params) {
         new Thread(() -> {
+            String err = null;
+            int n = -1;
             try {
-                Prices.refresh(this);
+                n = Prices.refresh(this);
             } catch (Exception e) {
-                // Kein Netz oder API-Fehler: beim nächsten Lauf erneut versuchen
+                // Kein Netz oder API-Fehler: beim nächsten Lauf erneut versuchen, Ursache für die Einstellungen merken
+                err = e.getClass().getSimpleName() + (e.getMessage() != null ? ": " + e.getMessage() : "");
             }
+            Prices.ran(this, err, n);
             jobFinished(params, false);
         }).start();
         return true;
