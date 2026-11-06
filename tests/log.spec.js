@@ -66,7 +66,8 @@ test('Verbrauch voll bis voll, Monate, Übernahme in den Umwegrechner, Bearbeite
   expect(errs).toEqual([]);
 });
 
-test('Fünf Reiter passen auf ein schmales Handy',async({page})=>{
+test('Fünf Reiter passen auf das Handy (393 px breit)',async({page})=>{
+  await page.setViewportSize({width:393,height:850});
   await setup(page);
   const w=await page.evaluate(()=>[...$$('nav button')].map(b=>b.scrollWidth<=b.clientWidth));
   expect(w).toEqual([true,true,true,true,true]);

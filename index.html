@@ -31,7 +31,7 @@ main>section{position:absolute;inset:0}
 #msg:empty{display:none}
 #loc{position:absolute;z-index:1000;right:12px;bottom:44px;width:48px;height:48px;border-radius:50%;border:0;background:var(--ink);color:var(--amber);font-size:24px;box-shadow:0 2px 8px #0006}
 nav{display:flex;background:var(--card);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom)}
-nav button{flex:1;min-width:0;background:none;border:0;padding:12px 0;color:var(--mut);font-weight:600;font-size:15px;border-top:3px solid transparent}
+nav button{flex:1;min-width:0;background:none;border:0;padding:12px 1px;color:var(--mut);font-weight:600;font-size:min(15px,3.9vw);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border-top:3px solid transparent}
 nav button.on{color:var(--fg);border-top-color:var(--amber)}
 .sortbar{display:flex;gap:8px;align-items:center;margin-bottom:10px;color:var(--mut)}
 .sortbar button{border:1px solid var(--line);background:var(--card);border-radius:8px;padding:6px 12px}
