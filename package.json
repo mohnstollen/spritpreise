@@ -1,0 +1,12 @@
+{
+  "name": "spritpreise",
+  "private": true,
+  "description": "Tests für die Spritpreise-PWA (die App selbst braucht keinen Build)",
+  "scripts": {
+    "test": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.63.0",
+    "leaflet": "1.9.4"
+  }
+}
