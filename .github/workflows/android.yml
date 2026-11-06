@@ -73,6 +73,11 @@ jobs:
           gradle assembleRelease --no-daemon --stacktrace
           mv app/build/outputs/apk/release/app-release.apk "app/build/outputs/apk/release/spritpreise-${VERSION_CODE}.apk"
 
+      # Android-Lint findet u. a. fehlende Berechtigungen und Aufrufe über dem minSdk; Fehler brechen den Build ab
+      - name: Android-Lint
+        working-directory: android
+        run: gradle lintRelease --no-daemon
+
       # Zertifikat ausgeben: Bei festem Schlüssel muss der SHA-256-Wert in jedem Build gleich sein
       - name: Signatur anzeigen
         working-directory: android

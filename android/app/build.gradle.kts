@@ -42,7 +42,11 @@ android {
     }
 
     lint {
+        // Lint läuft als eigener Schritt im Workflow (gradle lintRelease), nicht bei jedem assembleRelease
         checkReleaseBuilds = false
+        abortOnError = true
+        textReport = true
+        textOutput = file("stdout")
     }
 
     sourceSets["main"].assets.srcDir(layout.buildDirectory.dir("generated/web"))

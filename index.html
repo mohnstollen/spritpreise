@@ -797,6 +797,7 @@ function bestTime(id){
   return ct<2?'':`<div class="facts mut bt" aria-label="Meist am günstigsten von ${best} bis ${best+2} Uhr, etwa ${ct} Cent unter dem Tageshoch, aus ${n} Tagen">${ic('clock')}<span>Meist am günstigsten <b>${best}–${best+2} Uhr</b>, ca. ${ct} ct unter dem Tageshoch (aus ${n} Tagen)</span></div>`;
 }
 
+let favHl=null;
 function drawFavs(){
   const r=ref();
   const chips=[{id:'all',name:'Alle'},...S.groups].map(g=>`<button data-g="${esc(g.id)}" class="${g.id===S.grp?'on':''}">${esc(g.name)}</button>`).join('');
@@ -806,6 +807,8 @@ function drawFavs(){
   const opts=id=>S.groups.map(g=>`<option value="${esc(g.id)}"${g.id===gOf(id)?' selected':''}>${esc(g.name)}</option>`).join('');
   $('#favs').innerHTML=`<div class="grpbar">${chips}<button data-gact="add">＋ Gruppe</button>${tools}</div>`+(ts.length?`<p class="mut" style="margin:0 0 8px">Stand ${when(Math.min(...ts))}</p>`:'')+
     (ids.length?ids.map(id=>{const s=S.favs[id],a=S.alarms[id];return card(s,S.fp[id]||{},dist(r,[s.lat,s.lng]),spark(id)+bestTime(id)+(APP&&a?`<div class="sv mut">🔔 Alarm bei ${FN[a.fuel]} ≤ ${fmt(a.below)} €</div>`:'')+`<div class="mv"><button data-mv="-1" data-id="${esc(id)}" aria-label="Nach oben">▲</button><button data-mv="1" data-id="${esc(id)}" aria-label="Nach unten">▼</button>${APP?`<button data-alarm="${esc(id)}" aria-label="Preisalarm" aria-pressed="${!!a}">🔔</button>`:''}<select data-sel="${esc(id)}" aria-label="Gruppe">${opts(id)}</select></div>`)}).join(''):'<p class="empty">Keine Favoriten in dieser Ansicht. Tippe bei einer Tankstelle auf ☆.</p>');
+  // Aus Widget oder Benachrichtigung geöffnet: Favorit bleibt auch nach dem Neuladen der Preise markiert
+  if(favHl&&Date.now()<favHl.until)$(`#favs [data-fav="${CSS.escape(favHl.id)}"]`)?.closest('.card')?.classList.add('hl');
 }
 async function favs(){
   drawFavs();
@@ -1446,8 +1449,9 @@ document.addEventListener('visibilitychange',()=>{if(document.visibilityState===
 window.appOpen=(id,lat,lng)=>{
   $$('dialog').forEach(d=>d.open&&d.close());
   if(S.favs[id]){
-    S.grp='all';show('favs');
-    setTimeout(()=>{const c=$(`#favs [data-fav="${CSS.escape(id)}"]`)?.closest('.card');if(!c)return;c.scrollIntoView({block:'center'});c.classList.add('hl');setTimeout(()=>c.classList.remove('hl'),3000)},300);
+    S.grp='all';favHl={id,until:Date.now()+3000};show('favs');
+    setTimeout(()=>$(`#favs [data-fav="${CSS.escape(id)}"]`)?.closest('.card')?.scrollIntoView({block:'center'}),300);
+    setTimeout(()=>{favHl=null;$$('#favs .card.hl').forEach(c=>c.classList.remove('hl'))},3000);
   }else if(lat!=null){
     show('map');map.setView([lat,lng],15,{animate:false});
     Promise.resolve(load(true)).then(()=>marks.find(o=>o.id===id)?.m.openPopup());

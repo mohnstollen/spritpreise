@@ -1,3 +1,6 @@
 # Signaturschlüssel nie einchecken
 *.jks
 *.jks.b64
+node_modules/
+test-results/
+playwright-report/

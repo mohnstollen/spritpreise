@@ -1,0 +1,41 @@
+name: Tests
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  browser:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Abhängigkeiten
+        run: npm ci
+
+      - name: Chromium für Playwright
+        run: npx playwright install --with-deps chromium
+
+      # Alle externen Dienste sind nachgebildet: keine API-Keys, kein Netz nötig
+      - name: Browser-Tests
+        run: npx playwright test
+
+      - name: Bericht bei Fehlern
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-report
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 14
