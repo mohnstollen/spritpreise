@@ -1,6 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="widget_desc">Preise deiner Favoriten</string>
+    <string name="sc_near_short">In der Nähe</string>
+    <string name="sc_near_long">Günstigste in der Nähe</string>
+    <string name="sc_favs_short">Favoriten</string>
+    <string name="sc_favs_long">Favoriten</string>
 
     <style name="WidgetRow">
         <item name="android:layout_width">match_parent</item>

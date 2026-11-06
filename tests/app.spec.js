@@ -101,6 +101,26 @@ test('Günstigste im Umkreis im Widget: ohne Alarm und ohne Grenze',async({page}
   expect(await page.evaluate(()=>refreshes)).toBe(1);
 });
 
+test('Shortcuts am App-Symbol: gemerkte Routen, In der Nähe, Favoriten, Route',async({page})=>{
+  const routes=[{id:'r1',name:'Strecke zu Oma',start:'',dest:'Regensburg',corr:2,sPos:null,dPos:{lat:49.05,lng:12.05}},{id:'r2',name:'Arbeit',start:'',dest:'Erlangen',corr:1}];
+  let shortcuts=null,routing=0;
+  const errs=await setup(page,{time:NOW,android:{status:ok},ls:{fuel:'e10',favs,order:['a','b'],groups,routes,tt:'TT'},routes:[
+    ['**/json/list.php*',r=>json(r,{ok:true,stations:[{id:'n1',name:'Teuer',brand:'ESSO',lat:49.571,lng:10.881,e10:1.99,isOpen:true},{id:'n2',name:'Billig',brand:'JET',lat:49.572,lng:10.882,e10:1.79,isOpen:true}]})],
+    ['**/api.tomtom.com/routing/**',r=>{routing++;return r.fallback()}]]});
+  shortcuts=await page.evaluate(()=>window.sc);
+  expect(shortcuts).toEqual([{id:'r1',name:'Strecke zu Oma'},{id:'r2',name:'Arbeit'}]);
+  await page.evaluate(()=>appView('view','favs'));await settle(page);
+  expect(await page.evaluate(()=>S.view)).toBe('favs');
+  await page.evaluate(()=>appView('view','near'));await settle(page,2500);
+  expect(await page.evaluate(()=>S.view)).toBe('list');
+  await expect(page.locator('#items .card b').first()).toHaveText('JET');
+  await page.evaluate(()=>appView('route','r1'));await settle(page,1500);
+  expect(await page.evaluate(()=>S.view)).toBe('route');
+  expect(await page.inputValue('#rd')).toBe('Regensburg');
+  expect(routing).toBe(1);
+  expect(errs).toEqual([]);
+});
+
 test('Beste Tankzeit aus dem Preisverlauf',async({page})=>{
   await app(page);
   await page.click('nav [data-v=favs]');await settle(page,600);

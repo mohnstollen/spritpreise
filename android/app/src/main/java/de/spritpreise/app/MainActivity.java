@@ -6,6 +6,9 @@ import android.content.ActivityNotFoundException;
 import android.content.ComponentName;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.content.pm.ShortcutInfo;
+import android.content.pm.ShortcutManager;
+import android.graphics.drawable.Icon;
 import android.graphics.Insets;
 import android.net.Uri;
 import android.os.Build;
@@ -154,14 +157,21 @@ public class MainActivity extends Activity {
         openFrom(i);
     }
 
-    /** Aus Widget-Zeile oder Benachrichtigung: App bei dieser Tankstelle öffnen. */
+    /** Aus Widget-Zeile oder Benachrichtigung: App bei dieser Tankstelle öffnen.
+     *  Aus einem Shortcut (spritpreise://view/near, …/favs, spritpreise://route/<id>): Ansicht bzw. Route öffnen. */
     private void openFrom(Intent i) {
-        if (i == null || !Prices.OPEN.equals(i.getAction())) return;
-        String id = i.getStringExtra("id");
+        if (i == null) return;
+        String js = null;
+        Uri u = i.getData();
+        if (Prices.OPEN.equals(i.getAction()) && i.getStringExtra("id") != null) {
+            js = "window.appOpen&&appOpen(" + JSONObject.quote(i.getStringExtra("id"))
+                    + (i.hasExtra("lat") ? "," + i.getDoubleExtra("lat", 0) + "," + i.getDoubleExtra("lng", 0) : "") + ")";
+        } else if (Intent.ACTION_VIEW.equals(i.getAction()) && u != null && "spritpreise".equals(u.getScheme())) {
+            String what = u.getLastPathSegment();
+            if (what != null) js = "window.appView&&appView(" + JSONObject.quote(String.valueOf(u.getHost())) + "," + JSONObject.quote(what) + ")";
+        }
         i.setAction(null);
-        if (id == null) return;
-        String js = "window.appOpen&&appOpen(" + JSONObject.quote(id)
-                + (i.hasExtra("lat") ? "," + i.getDoubleExtra("lat", 0) + "," + i.getDoubleExtra("lng", 0) : "") + ")";
+        if (js == null) return;
         if (loaded) web.evaluateJavascript(js, null);
         else pendingJs = js;
     }
@@ -299,6 +309,34 @@ public class MainActivity extends Activity {
             if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)
                     != PackageManager.PERMISSION_GRANTED) {
                 runOnUiThread(() -> requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, REQ_NOTIFY));
+            }
+        }
+
+        /** Gemerkte Routen als Shortcuts am App-Symbol (neben den festen „In der Nähe“ und „Favoriten“). */
+        @JavascriptInterface
+        public void setShortcuts(String json) {
+            if (Build.VERSION.SDK_INT < 25) return;
+            try {
+                ShortcutManager sm = getSystemService(ShortcutManager.class);
+                org.json.JSONArray a = new org.json.JSONArray(json);
+                java.util.List<ShortcutInfo> list = new java.util.ArrayList<>();
+                int max = Math.max(0, sm.getMaxShortcutCountPerActivity() - 2);
+                for (int k = 0; k < a.length() && list.size() < Math.min(3, max); k++) {
+                    JSONObject r = a.optJSONObject(k);
+                    if (r == null || r.optString("id").isEmpty()) continue;
+                    String name = r.optString("name", "Route");
+                    Intent go = new Intent(Intent.ACTION_VIEW, Uri.parse("spritpreise://route/" + Uri.encode(r.optString("id"))),
+                            MainActivity.this, MainActivity.class);
+                    list.add(new ShortcutInfo.Builder(MainActivity.this, "route_" + r.optString("id"))
+                            .setShortLabel(name.length() > 10 ? name.substring(0, 10) : name)
+                            .setLongLabel("Route: " + name)
+                            .setIcon(Icon.createWithResource(MainActivity.this, R.drawable.ic_sc_route))
+                            .setIntent(go)
+                            .build());
+                }
+                sm.setDynamicShortcuts(list);
+            } catch (org.json.JSONException | RuntimeException e) {
+                // Shortcuts sind Zusatz (z. B. Limit des Launchers erreicht)
             }
         }
 

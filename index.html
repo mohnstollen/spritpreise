@@ -600,7 +600,8 @@ async function load(force){
   if(!navigator.onLine)return msg('Offline'+(lastQ?', Stand '+when(lastQ.t):''));
   if(!force&&Date.now()<S.wait)return msg('Abfragen pausiert bis '+hhmm(S.wait)+' Uhr');
   const c=map.getCenter(),ne=map.getBounds().getNorthEast();
-  const rad=Math.min(25,Math.max(1,dist([c.lat,c.lng],[ne.lat,ne.lng])));
+  // Unsichtbare Karte (z. B. per Shortcut direkt in der Liste gestartet) hat keine Größe: dann 5 km um die Mitte
+  const rad=map.getSize().x?Math.min(25,Math.max(1,dist([c.lat,c.lng],[ne.lat,ne.lng]))):5;
   if(!force&&lastQ&&Date.now()-lastQ.t<300000&&dist([c.lat,c.lng],lastQ.c)<lastQ.rad*0.3&&rad<=lastQ.rad*1.25)return;
   const q=++reqN;
   try{
@@ -1259,7 +1260,10 @@ $('#ac').onclick=e=>{
 /* Gemerkte Routen („Strecke zu Oma“): Antippen rechnet sofort, lange drücken zum Umbenennen oder Löschen */
 function drawRfav(){
   $('#rfav').innerHTML=S.routes.map(r=>`<button data-rfav="${esc(r.id)}">${esc(r.name)}</button>`).join('')+'<button data-radd>＋ Route merken</button>';
+  // App: die ersten drei gemerkten Routen als Shortcuts am App-Symbol
+  if(APP)try{Android.setShortcuts?.(JSON.stringify(S.routes.slice(0,3).map(r=>({id:r.id,name:r.name}))))}catch{}
 }
+function runRoute(r){setPlace($('#rs'),r.start,r.sPos);setPlace($('#rd'),r.dest,r.dPos);$('#rc').value=String(r.corr||2);calcRoute()}
 async function saveRoute(){
   const start=$('#rs').value.trim(),dest=$('#rd').value.trim();
   if(!start&&!dest)return $('#rstat').textContent='Erst Start oder Ziel eingeben, dann merken.';
@@ -1288,8 +1292,7 @@ rfb.onclick=e=>{
   if(rlp){rlp=false;return}
   if(e.target.closest('[data-radd]'))return saveRoute();
   const b=e.target.closest('[data-rfav]');if(!b||$('#rgo').disabled)return;
-  const r=S.routes.find(x=>x.id===b.dataset.rfav);if(!r)return;
-  setPlace($('#rs'),r.start,r.sPos);setPlace($('#rd'),r.dest,r.dPos);$('#rc').value=String(r.corr||2);calcRoute();
+  const r=S.routes.find(x=>x.id===b.dataset.rfav);if(r)runRoute(r);
 };
 drawRfav();
 $('#rsum').addEventListener('click',e=>{
@@ -1448,6 +1451,17 @@ $('#bgstat').addEventListener('click',e=>{
   if(e.target.id==='bgnow'){syncNative();Android.refreshNow?.();e.target.textContent='Fragt ab …';e.target.disabled=true;setTimeout(bgStatus,8000)}
 });
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&$('#dlg').open)bgStatus()});
+
+/* Aus einem Shortcut am App-Symbol: „In der Nähe“ (Liste am Standort, günstigste zuerst), Favoriten oder eine gemerkte Route */
+window.appView=(kind,what)=>{
+  $$('dialog').forEach(d=>d.open&&d.close());
+  if(kind==='route'){const r=S.routes.find(x=>x.id===what);show('route');if(r&&!$('#rgo').disabled)runRoute(r);return}
+  if(what==='favs')return show('favs');
+  if(what==='near'){
+    S.sort=calcOn()?'save':'price';show('list');
+    locate();
+  }
+};
 
 /* Aus Widget-Zeile oder Benachrichtigung: Favorit in der Liste hervorheben, sonst Karte an der Tankstelle */
 window.appOpen=(id,lat,lng)=>{

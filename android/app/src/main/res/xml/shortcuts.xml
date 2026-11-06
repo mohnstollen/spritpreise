@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Feste Shortcuts (langes Drücken aufs App-Symbol); gemerkte Routen kommen dynamisch aus der App dazu -->
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:shortcutId="near"
+        android:enabled="true"
+        android:icon="@drawable/ic_sc_near"
+        android:shortcutShortLabel="@string/sc_near_short"
+        android:shortcutLongLabel="@string/sc_near_long">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:data="spritpreise://view/near"
+            android:targetPackage="de.spritpreise.app"
+            android:targetClass="de.spritpreise.app.MainActivity" />
+    </shortcut>
+    <shortcut
+        android:shortcutId="favs"
+        android:enabled="true"
+        android:icon="@drawable/ic_sc_fav"
+        android:shortcutShortLabel="@string/sc_favs_short"
+        android:shortcutLongLabel="@string/sc_favs_long">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:data="spritpreise://view/favs"
+            android:targetPackage="de.spritpreise.app"
+            android:targetClass="de.spritpreise.app.MainActivity" />
+    </shortcut>
+</shortcuts>
