@@ -344,13 +344,15 @@ dialog h4{margin:14px 0 6px}
         </select>
       </label>
       <p class="mut">Fragt nur die Favoriten im Widget und mit Preisalarm ab. Android kann die Abfrage zum Akkusparen verzögern. Den Alarm stellst du bei einem Favoriten mit 🔔 ein.</p>
-      <label class="chk" style="margin-top:12px"><input type="checkbox" id="aon"> <b>Umkreis-Alarm:</b>&nbsp;melden, wenn irgendeine Tankstelle im Umkreis die Grenze erreicht</label>
+      <p style="margin:14px 0 4px"><b>Günstigste im Umkreis</b></p>
+      <label class="chk"><input type="checkbox" id="awid"> im Widget als eigene Zeile zeigen</label>
+      <label class="chk"><input type="checkbox" id="aon"> Alarm, wenn irgendeine Tankstelle im Umkreis die Grenze erreicht</label>
       <div class="two"><label>Sorte <select id="afuel"><option value="e5">Super E5</option><option value="e10">Super E10</option><option value="diesel">Diesel</option></select></label>
         <label>Grenze in € <input id="abelow" inputmode="decimal" autocomplete="off" placeholder="z. B. 1,85" pattern="\s*[0-9]([.,][0-9]{1,3})?\s*" title="Preis in Euro, z. B. 1,85"></label></div>
       <label style="margin-top:8px">Umkreis <select id="arad"><option value="5">5 km</option><option value="10">10 km</option><option value="15">15 km</option><option value="25">25 km</option></select></label>
       <p class="mut" id="actr" style="margin-bottom:4px"></p>
       <div class="row"><button type="button" id="ame">Mein Standort als Mittelpunkt</button><button type="button" id="amap">Kartenmitte</button></div>
-      <p class="mut">Eine Tankerkönig-Abfrage je Hintergrundlauf. Gemeldet wird einmal; erneut erst, nachdem der Preis wieder über der Grenze lag.</p>
+      <p class="mut">Eine Tankerkönig-Abfrage je Hintergrundlauf. Die Grenze braucht nur der Alarm; er meldet einmal und erneut erst, nachdem der Preis wieder über der Grenze lag.</p>
       <div id="bgstat" class="bgstat" aria-live="polite"></div>
     </div>
     <div class="row" id="appver" hidden><span class="mut">App-Version <b id="appverv"></b></span><button type="button" id="updchk">Nach Updates suchen</button></div>
@@ -1330,7 +1332,7 @@ function openSettings(){
   $('#wgrp').innerHTML='<option value="all">Alle Favoriten (die ersten 5)</option>'+S.groups.map(g=>`<option value="${esc(g.id)}">Gruppe ${esc(g.name)}</option>`).join('');
   $('#wgrp').value=S.groups.some(g=>g.id===S.wgrp)?S.wgrp:'all';$('#bgint').value=String(S.bgint);
   if(APP){
-    $('#aon').checked=!!AREA.on;$('#afuel').value=AREA.fuel||S.fuel;$('#abelow').value=AREA.below?String(AREA.below).replace('.',','):'';
+    $('#aon').checked=!!AREA.on;$('#awid').checked=!!AREA.wid;$('#afuel').value=AREA.fuel||S.fuel;$('#abelow').value=AREA.below?String(AREA.below).replace('.',','):'';
     $('#arad').value=String(AREA.rad||10);$('#abelow').required=$('#aon').checked;aDraft=AREA.lat!=null?{lat:AREA.lat,lng:AREA.lng,src:AREA.src,t:AREA.t}:null;aLabel();bgStatus();
   }
   const cur=LS.get('start','');
@@ -1398,10 +1400,12 @@ $('#dlg').addEventListener('close',e=>{
   S.pois={};for(const k in POI)S.pois[k]=$('#poi-'+k).checked;S.poirad=+$('#poirad').value;LS.set('pois',S.pois);LS.set('poirad',S.poirad);
   if(APP){
     S.wgrp=$('#wgrp').value;S.bgint=+$('#bgint').value;LS.set('wgrp',S.wgrp);LS.set('bgint',S.bgint);
-    const on=$('#aon').checked,below=num($('#abelow').value);
-    if(on&&!aDraft)aDraft=aCenter(S.me?'me':'map');
-    AREA={on:on&&below>0,fuel:$('#afuel').value,below,rad:+$('#arad').value,...(aDraft||{})};LS.set('area',AREA);
+    const on=$('#aon').checked,wid=$('#awid').checked,below=num($('#abelow').value);
+    if((on||wid)&&!aDraft)aDraft=aCenter(S.me?'me':'map');
+    AREA={on:on&&below>0,wid,fuel:$('#afuel').value,below,rad:+$('#arad').value,...(aDraft||{})};LS.set('area',AREA);
     if(AREA.on)Android.requestNotify?.();
+    // Widget-Zeile und Alarm gleich mit den neuen Einstellungen abfragen (nach dem Abgleich unten)
+    if(AREA.on||AREA.wid)setTimeout(()=>Android.refreshNow?.(),500);
   }
   if($('#incf').value!==S.incf){S.incf=$('#incf').value;LS.set('incf',S.incf);incDraw();incLoad()}
   const tt=$('#tt').value.trim(),ts=$('#tstyle').value;
@@ -1432,7 +1436,7 @@ function bgStatus(){
   const b=(w,t)=>`<button type="button" data-sys="${w}">${t}</button>`;
   $('#bgstat').innerHTML='<b>Hintergrund-Status</b>'
     +row('Letzte Abfrage',!s.run?'noch keine':esc(when(s.run))+(s.err?` – ${esc(bgErr(s.err))}`:s.n>0?` ✓ ${s.n} ${s.n===1?'Tankstelle':'Tankstellen'}`:' ✓')+(late?' – verzögert':''),s.err||late?'bad':s.run?'ok':'')
-    +row('Geplant',s.planErr?'nein – '+esc(s.planErr):s.planned?`alle ${s.planned} min`:'nein (kein Widget, Preisalarm oder Umkreis-Alarm)',s.planErr?'bad':'')
+    +row('Geplant',s.planErr?'nein – '+esc(s.planErr):s.planned?`alle ${s.planned} min`:'nein (kein Widget, Preisalarm oder Umkreis)',s.planErr?'bad':'')
     +row('Benachrichtigungen',s.notify?'erlaubt':'blockiert',s.notify?'ok':'bad',s.notify?'':b('notify','Erlauben'))
     +row('Akku',s.battery?'keine Einschränkung':'eingeschränkt',s.battery?'ok':'bad',s.battery?'':b('battery','Ändern'))
     +(xi?row('Autostart','bei Xiaomi nötig','',b('autostart','Prüfen')):'')

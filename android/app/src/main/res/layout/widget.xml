@@ -67,4 +67,10 @@
         <TextView android:id="@+id/n5" style="@style/WidgetName" />
         <TextView android:id="@+id/p5" style="@style/WidgetPrice" />
     </LinearLayout>
+
+    <!-- Günstigste Tankstelle im Umkreis (Einstellung „Im Widget zeigen“) -->
+    <LinearLayout android:id="@+id/ra" style="@style/WidgetRow">
+        <TextView android:id="@+id/na" style="@style/WidgetName" android:textColor="#FFB000" />
+        <TextView android:id="@+id/pa" style="@style/WidgetPrice" />
+    </LinearLayout>
 </LinearLayout>

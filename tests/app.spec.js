@@ -82,10 +82,23 @@ test('Umkreis-Alarm: nur mit Grenze, Mittelpunkt, Abgleich',async({page})=>{
   await expect(page.locator('#actr')).toContainText('dein Standort');
   await page.click('#save');await settle(page,300);
   const a=(await last(page)).area;
-  expect(a).toMatchObject({on:true,fuel:'diesel',below:1.799,rad:15,lat:49.57,lng:10.88,src:'me'});
+  expect(a).toMatchObject({on:true,wid:false,fuel:'diesel',below:1.799,rad:15,lat:49.57,lng:10.88,src:'me'});
   expect(await page.evaluate(()=>notifyReq)).toBe(1);
+  await settle(page,600);
+  expect(await page.evaluate(()=>refreshes)).toBe(1);
   await page.evaluate(()=>openSettings());
   expect([await page.isChecked('#aon'),await page.inputValue('#abelow'),await page.inputValue('#arad')]).toEqual([true,'1,799','15']);
+});
+
+test('Günstigste im Umkreis im Widget: ohne Alarm und ohne Grenze',async({page})=>{
+  await app(page);
+  await page.evaluate(()=>openSettings());
+  await page.check('#awid');await page.click('#save');await settle(page,300);await settle(page,800);
+  const a=(await last(page)).area;
+  // Mittelpunkt automatisch vom Standort, Alarm bleibt aus
+  expect(a).toMatchObject({on:false,wid:true,fuel:'e10',lat:49.57,lng:10.88,src:'me'});
+  expect(await page.evaluate(()=>notifyReq)).toBe(0);
+  expect(await page.evaluate(()=>refreshes)).toBe(1);
 });
 
 test('Beste Tankzeit aus dem Preisverlauf',async({page})=>{
