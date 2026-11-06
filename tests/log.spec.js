@@ -66,9 +66,14 @@ test('Verbrauch voll bis voll, Monate, Übernahme in den Umwegrechner, Bearbeite
   expect(errs).toEqual([]);
 });
 
-test('Fünf Reiter passen auf das Handy (393 px breit)',async({page})=>{
-  await page.setViewportSize({width:393,height:850});
+test('Fünf Reiter: einzeilig, gleich breit, ohne Überlauf',async({page})=>{
+  // Ob die Beschriftung ganz hineinpasst, hängt von der Systemschrift ab (Android: Roboto); zu lange Texte kürzt CSS mit „…“
+  await page.setViewportSize({width:360,height:800});
   await setup(page);
-  const w=await page.evaluate(()=>[...$$('nav button')].map(b=>b.scrollWidth<=b.clientWidth));
-  expect(w).toEqual([true,true,true,true,true]);
+  const r=await page.evaluate(()=>({nav:$('nav').scrollWidth<=innerWidth,b:[...$$('nav button')].map(b=>[Math.round(b.getBoundingClientRect().width),b.getBoundingClientRect().height]),
+    ws:getComputedStyle($('nav button')).whiteSpace,to:getComputedStyle($('nav button')).textOverflow}));
+  expect(r.nav).toBe(true);
+  expect(new Set(r.b.map(x=>x[0])).size).toBe(1);
+  expect(new Set(r.b.map(x=>x[1])).size).toBe(1);
+  expect([r.ws,r.to]).toEqual(['nowrap','ellipsis']);
 });
