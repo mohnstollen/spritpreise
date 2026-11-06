@@ -37,6 +37,7 @@ async function start(page,o={}){
   await page.click('#rd');await page.keyboard.type('Rechtm');await settle(page,700);
   await page.locator('#ac button').first().click();
   if(o.corr)await page.selectOption('#rc',String(o.corr));
+  if(o.dep)await page.fill('#rdep',o.dep);
   await page.click('#rgo');
   await until(page,()=>!!$('#rsum .sum')&&!/prüfe weitere|Suche Orte/.test($('#rsum').textContent+$('#ritems').textContent)&&!route?.poiBusy);
   return {n,errs};
@@ -101,4 +102,20 @@ test('Route: Filter „Nur mit“, Offen und Marken',async({page})=>{
   // alle Kategorien in einer Anfrage: Umschalten kostet keine weitere Suche
   expect(n.near).toBe(14);
   expect(errs).toEqual([]);
+});
+
+test('Route: Verkehr zur Abfahrtszeit',async({page})=>{
+  // jetzt: ohne departAt
+  let {n}=await start(page);
+  expect(n.route[0]).not.toContain('departAt');
+  await expect(page.locator('#rsum')).not.toContainText('Verkehr: erwartet');
+  // spätere Abfahrt: TomTom rechnet mit dem erwarteten Verkehr
+  await page.fill('#rdep','14:00');await page.click('#rgo');
+  await until(page,()=>/erwartet/.test($('#rsum').textContent));
+  expect(decodeURIComponent(n.route[1])).toContain('departAt=2026-10-28T14:00:00+01:00');
+  await expect(page.locator('#rsum')).toContainText('Abfahrt 14:00 Uhr · Verkehr: erwartet für 14:00 Uhr');
+  await expect(page.locator('#rsum')).not.toContainText('Abfahrt geändert');
+  // Abfahrt danach geändert: Hinweis zum Neuberechnen
+  await page.fill('#rdep','15:30');await settle(page);
+  await expect(page.locator('#rsum')).toContainText('Abfahrt geändert: Route neu berechnen');
 });
