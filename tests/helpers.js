@@ -47,7 +47,7 @@ async function setup(page,o={}){
   if(o.android)await page.addInitScript(st=>{
     window.syncs=[];window.notifyReq=0;window.sys=[];window.refreshes=0;window.ST=st;
     window.Android={version:()=>'1.0.0',share(){},saveFile(){},syncConfig:j=>syncs.push(JSON.parse(j)),requestNotify:()=>notifyReq++,
-      prices:()=>JSON.stringify(window.bgPrices||{}),status:()=>JSON.stringify(window.ST||{}),openSystem:w=>sys.push(w),refreshNow:()=>refreshes++};
+      prices:()=>JSON.stringify(window.bgPrices||{}),setShortcuts:j=>{window.sc=JSON.parse(j)},status:()=>JSON.stringify(window.ST||{}),openSystem:w=>sys.push(w),refreshNow:()=>refreshes++};
   },o.android.status||{});
   await page.goto('/index.html');
   await settle(page,o.time?800:500);

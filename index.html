@@ -31,7 +31,7 @@ main>section{position:absolute;inset:0}
 #msg:empty{display:none}
 #loc{position:absolute;z-index:1000;right:12px;bottom:44px;width:48px;height:48px;border-radius:50%;border:0;background:var(--ink);color:var(--amber);font-size:24px;box-shadow:0 2px 8px #0006}
 nav{display:flex;background:var(--card);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom)}
-nav button{flex:1;background:none;border:0;padding:12px 0;color:var(--mut);font-weight:600;border-top:3px solid transparent}
+nav button{flex:1;min-width:0;background:none;border:0;padding:12px 1px;color:var(--mut);font-weight:600;font-size:min(15px,3.9vw);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border-top:3px solid transparent}
 nav button.on{color:var(--fg);border-top-color:var(--amber)}
 .sortbar{display:flex;gap:8px;align-items:center;margin-bottom:10px;color:var(--mut)}
 .sortbar button{border:1px solid var(--line);background:var(--card);border-radius:8px;padding:6px 12px}
@@ -61,7 +61,14 @@ dialog menu{display:flex;justify-content:flex-end;gap:8px;padding:0;margin:14px 
 dialog menu button{border:1px solid var(--line);background:none;border-radius:8px;padding:8px 14px}
 dialog menu #save{background:var(--ink);color:var(--amber);border-color:var(--ink);font-weight:600}
 #sf{flex:1 1 100%;order:3;display:flex;gap:8px;min-width:0}
-#route{overflow:auto;padding:10px 12px 16px}
+#route,#log{overflow:auto;padding:10px 12px 16px}
+.lstat{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:10px 0;font-size:14px}
+.lstat div{margin:3px 0}.lstat .g{color:var(--good);font-weight:700}
+.lrow{display:block;width:100%;text-align:left;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:8px 12px;margin-bottom:6px;color:var(--fg);font:inherit}
+.lrow b{font-weight:600}.lrow .mut{font-size:14px}
+.lstat button{border:1px solid var(--line);background:none;color:var(--fg);border-radius:8px;padding:3px 8px;font-size:13px;margin-left:4px}
+#lgAdd{background:var(--ink);color:var(--amber);border:1px solid var(--ink);border-radius:8px;padding:9px 16px;font-weight:600}
+@media(prefers-color-scheme:dark){#lgAdd{background:var(--amber);color:#14181c;border-color:var(--amber)}}
 .rform{display:flex;flex-direction:column;gap:8px;margin-bottom:8px}
 .rform input,.rform select{padding:10px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--fg);min-width:0}
 .rrow{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
@@ -238,6 +245,7 @@ dialog h4{margin:14px 0 6px}
     <div id="items"></div>
   </section>
   <section id="favs" hidden></section>
+  <section id="log" hidden></section>
   <section id="route" hidden>
     <div id="rfav" class="grpbar"></div>
     <form id="rf" class="rform">
@@ -268,7 +276,7 @@ dialog h4{margin:14px 0 6px}
   </section>
 </main>
 <nav>
-  <button data-v="map" class="on">Karte</button><button data-v="list">Liste</button><button data-v="favs">Favoriten</button><button data-v="route">Route</button>
+  <button data-v="map" class="on">Karte</button><button data-v="list">Liste</button><button data-v="favs">Favoriten</button><button data-v="route">Route</button><button data-v="log">Logbuch</button>
 </nav>
 <dialog id="dlg">
   <form method="dialog">
@@ -344,13 +352,15 @@ dialog h4{margin:14px 0 6px}
         </select>
       </label>
       <p class="mut">Fragt nur die Favoriten im Widget und mit Preisalarm ab. Android kann die Abfrage zum Akkusparen verzögern. Den Alarm stellst du bei einem Favoriten mit 🔔 ein.</p>
-      <label class="chk" style="margin-top:12px"><input type="checkbox" id="aon"> <b>Umkreis-Alarm:</b>&nbsp;melden, wenn irgendeine Tankstelle im Umkreis die Grenze erreicht</label>
+      <p style="margin:14px 0 4px"><b>Günstigste im Umkreis</b></p>
+      <label class="chk"><input type="checkbox" id="awid"> im Widget als eigene Zeile zeigen</label>
+      <label class="chk"><input type="checkbox" id="aon"> Alarm, wenn irgendeine Tankstelle im Umkreis die Grenze erreicht</label>
       <div class="two"><label>Sorte <select id="afuel"><option value="e5">Super E5</option><option value="e10">Super E10</option><option value="diesel">Diesel</option></select></label>
         <label>Grenze in € <input id="abelow" inputmode="decimal" autocomplete="off" placeholder="z. B. 1,85" pattern="\s*[0-9]([.,][0-9]{1,3})?\s*" title="Preis in Euro, z. B. 1,85"></label></div>
       <label style="margin-top:8px">Umkreis <select id="arad"><option value="5">5 km</option><option value="10">10 km</option><option value="15">15 km</option><option value="25">25 km</option></select></label>
       <p class="mut" id="actr" style="margin-bottom:4px"></p>
       <div class="row"><button type="button" id="ame">Mein Standort als Mittelpunkt</button><button type="button" id="amap">Kartenmitte</button></div>
-      <p class="mut">Eine Tankerkönig-Abfrage je Hintergrundlauf. Gemeldet wird einmal; erneut erst, nachdem der Preis wieder über der Grenze lag.</p>
+      <p class="mut">Eine Tankerkönig-Abfrage je Hintergrundlauf. Die Grenze braucht nur der Alarm; er meldet einmal und erneut erst, nachdem der Preis wieder über der Grenze lag.</p>
       <div id="bgstat" class="bgstat" aria-live="polite"></div>
     </div>
     <div class="row" id="appver" hidden><span class="mut">App-Version <b id="appverv"></b></span><button type="button" id="updchk">Nach Updates suchen</button></div>
@@ -370,6 +380,21 @@ dialog h4{margin:14px 0 6px}
     <p><button type="button" class="lnk" id="ball">Alle auswählen</button></p>
     <p class="mut">Gilt für Karte und Liste, nicht für Favoriten.</p>
     <menu class="rv"><button class="pri" value="ok">Übernehmen</button><button value="cancel">Abbrechen</button></menu>
+  </form>
+</dialog>
+<dialog id="logd">
+  <form method="dialog" id="lgf">
+    <h3 id="lgT">Tankvorgang</h3>
+    <label>Tankstelle <input id="lgSt" list="lgStl" autocomplete="off" placeholder="Name oder Ort"></label><datalist id="lgStl"></datalist>
+    <label style="margin-top:12px">Datum und Uhrzeit <input type="datetime-local" id="lgDt" required></label>
+    <div class="two"><label>Sorte <select id="lgF"><option value="e5">Super E5</option><option value="e10">Super E10</option><option value="diesel">Diesel</option></select></label>
+      <label>Liter <input id="lgL" inputmode="decimal" autocomplete="off" placeholder="z. B. 42,5"></label></div>
+    <div class="two"><label>Preis je l <input id="lgP" inputmode="decimal" autocomplete="off" placeholder="z. B. 1,859"></label>
+      <label>Betrag in € <input id="lgB" inputmode="decimal" autocomplete="off" placeholder="berechnet"></label></div>
+    <label style="margin-top:12px">km-Stand <input id="lgK" inputmode="numeric" autocomplete="off" placeholder="optional"></label>
+    <label class="chk" style="margin-top:10px"><input type="checkbox" id="lgFull" checked> vollgetankt (für den Verbrauch)</label>
+    <p class="mut" id="lgInfo" style="margin:8px 0 0">Zwei von Liter, Preis und Betrag reichen, der dritte Wert wird berechnet.</p>
+    <menu class="rv"><button value="ok" class="pri">Speichern</button><button value="cancel" formnovalidate>Abbrechen</button><button value="del" class="del" id="lgDel" formnovalidate>Löschen</button></menu>
   </form>
 </dialog>
 <dialog id="ask">
@@ -598,7 +623,8 @@ async function load(force){
   if(!navigator.onLine)return msg('Offline'+(lastQ?', Stand '+when(lastQ.t):''));
   if(!force&&Date.now()<S.wait)return msg('Abfragen pausiert bis '+hhmm(S.wait)+' Uhr');
   const c=map.getCenter(),ne=map.getBounds().getNorthEast();
-  const rad=Math.min(25,Math.max(1,dist([c.lat,c.lng],[ne.lat,ne.lng])));
+  // Unsichtbare Karte (z. B. per Shortcut direkt in der Liste gestartet) hat keine Größe: dann 5 km um die Mitte
+  const rad=map.getSize().x?Math.min(25,Math.max(1,dist([c.lat,c.lng],[ne.lat,ne.lng]))):5;
   if(!force&&lastQ&&Date.now()-lastQ.t<300000&&dist([c.lat,c.lng],lastQ.c)<lastQ.rad*0.3&&rad<=lastQ.rad*1.25)return;
   const q=++reqN;
   try{
@@ -894,8 +920,12 @@ async function geocode(q,el){
   if(!r.length)throw new Error(`„${q}“ nicht gefunden`);
   return{lat:+r[0].lat,lng:+r[0].lon};
 }
-async function tomtomRoute(a,b){
-  const r=await ttFetch(`https://api.tomtom.com/routing/1/calculateRoute/${a.lat},${a.lng}:${b.lat},${b.lng}/json?key=${encodeURIComponent(S.tt)}&travelMode=car&traffic=true&instructionsType=coded&sectionType=traffic`);
+// Ortszeit mit Zeitzone für TomTom (RFC 3339), z. B. 2026-11-06T17:30:00+01:00
+const isoLocal=ms=>{const d=new Date(ms),o=-d.getTimezoneOffset(),p=n=>String(Math.abs(n)).padStart(2,'0');
+  return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}:00${o<0?'-':'+'}${p(Math.trunc(o/60))}:${p(o%60)}`};
+// dep: spätere Abfahrt (ms) → TomTom rechnet mit dem für diese Zeit erwarteten Verkehr statt mit dem aktuellen
+async function tomtomRoute(a,b,dep){
+  const r=await ttFetch(`https://api.tomtom.com/routing/1/calculateRoute/${a.lat},${a.lng}:${b.lat},${b.lng}/json?key=${encodeURIComponent(S.tt)}&travelMode=car&traffic=true&instructionsType=coded&sectionType=traffic${dep?'&departAt='+encodeURIComponent(isoLocal(dep)):''}`);
   const j=await r.json().catch(()=>({}));
   if(!r.ok)throw new Error(`TomTom antwortet mit HTTP ${r.status}${(t=>t?': '+t:'')(j.detailedError?.message||j.error?.description||'')}`);
   const rt=j.routes?.[0];if(!rt)throw new Error('Keine Route gefunden');
@@ -954,7 +984,9 @@ async function calcRoute(){
     st('Suche Start und Ziel …');
     const a=await geocode(start,$('#rs')),b=await geocode(dest,$('#rd'));
     st('Berechne Route …');
-    const rt=await tomtomRoute(a,b);
+    // Ab 10 Minuten in der Zukunft: Verkehr zur Abfahrtszeit
+    const t0=Date.now(),dep=departure(t0),depAt=dep-t0>10*60000?dep:0;
+    const rt=await tomtomRoute(a,b,depAt);
     rt.pts=thin(rt.pts);rt.cum=along(rt.pts);rt.scale=rt.km/(rt.cum[rt.cum.length-1]||1);
     const cnt=Math.ceil(rt.km/40)+1;
     if(cnt>26)throw new Error('Die Route ist länger als 1.000 km. Bitte in Etappen planen.');
@@ -969,7 +1001,7 @@ async function calcRoute(){
     }
     const cands=[];
     for(const x of all.values()){const pr=project(rt,[x.lat,x.lng]);if(pr.d<=corr)cands.push({s:x,off:pr.d,at:pr.km})}
-    route={...rt,a,b,all,cands,corr,dName:dest,t:Date.now()};
+    route={...rt,a,b,all,cands,corr,dName:dest,depAt,t:Date.now()};
     st('');renderRoute();
     incNames(route);
   }catch(e){st(e instanceof TypeError?'Keine Verbindung. Bitte später erneut versuchen.':e.message)}
@@ -1008,10 +1040,10 @@ async function incNames(rt){
   renderRoute();
 }
 // Abfahrt aus dem Feld (heute, oder morgen, falls die Uhrzeit schon vorbei ist); leer = Zeitpunkt der Berechnung
-function departure(){
-  const v=$('#rdep').value;if(!v)return route.t;
-  const [h,m]=v.split(':').map(Number),d=new Date(route.t);d.setHours(h,m,0,0);
-  if(d.getTime()<route.t-5*60000)d.setDate(d.getDate()+1);
+function departure(t=route.t){
+  const v=$('#rdep').value;if(!v)return t;
+  const [h,m]=v.split(':').map(Number),d=new Date(t);d.setHours(h,m,0,0);
+  if(d.getTime()<t-5*60000)d.setDate(d.getDate()+1);
   return d.getTime();
 }
 // Nächster 12-Uhr-Zeitpunkt nach dem Preisstand: Wer danach ankommt, findet womöglich höhere Preise vor
@@ -1191,7 +1223,7 @@ function renderRoute(){
   const noonInfo=ranked.dep>=nextNoon(route.t)?`<div class="facts warn">${ic('warn')}Du fährst nach 12 Uhr los. Die Preise sind von davor: Route nach 12 Uhr neu berechnen, dann stimmen sie.</div>`
     :ranked.late?`<div class="facts warn">${ic('warn')}${ranked.late} ${ranked.late===1?'Tankstelle':'Tankstellen'} nach 12 Uhr ausgeblendet (inkl. ${S.noonbuf} min Puffer).</div>`
     :risky?`<div class="facts warn">${ic('warn')}Bei ${risky} ${risky===1?'Tankstelle':'Tankstellen'} kommst du nach 12 Uhr an (inkl. ${S.noonbuf} min Puffer). Dort kann der Preis bis dahin gestiegen sein.</div>`:'';
-  $('#rsum').innerHTML=`<div class="sum">${km(route.km)} · ${dur(route.sec)}${route.delay>=60?`<span class="dl ${dCls(route.delay)}"> (+${Math.round(route.delay/60)} min Stau)</span>`:''} · ${ranked.length} ${ranked.length===1?'Tankstelle':'Tankstellen'} mit ${FN[S.fuel]} bis ${route.corr} km neben der Strecke${top[0]?` · günstigste <b>${fmt(top[0].p)} €</b>`:''}<div class="mut">Preise von ${hhmm(route.t)} Uhr · Abfahrt ${when(ranked.dep)}</div>${ranked.hid?`<div class="mut">${ranked.hid} ${ranked.hid===1?'Tankstelle':'Tankstellen'} durch Filter ausgeblendet (${[S.open&&'nur offene',S.noBAB&&'ohne Autobahn',S.hide.length&&`${S.hide.length} ${S.hide.length===1?'Marke':'Marken'}`].filter(Boolean).join(', ')})</div>`:''}${need.length?`<div class="mut">Nur mit ${need.map(c=>POI[c].label).join(' und ')}, bei Ankunft geöffnet: ${pend.length?`prüfe weitere Tankstellen … (${top.length} gefunden)`:`${top.length} gefunden${poiOut?`, ${poiOut} ohne`:''}${capped?' (die günstigsten 30 geprüft)':''}`}</div>`:''}${calcOn()&&ranked.length>1?`<div class="mut">Vergleich: mittlere Kosten aller Tankstellen der Strecke (Median) für ${String(S.lit).replace('.',',')} l, inkl. Umweg</div>`:''}${rngInfo}${noonInfo}${incInfo}${rCats().length?`<div class="mut">${route.poiErr?`Orte in der Nähe konnten nicht geladen werden (TomTom: ${esc(route.poiErr)}).`:'Orte in der Nähe und Öffnungszeiten: TomTom'}</div>`:''}</div><div class="row"><button data-rmap>Auf Karte zeigen</button><button class="sec" data-rclear>Route löschen</button></div>`;
+  $('#rsum').innerHTML=`<div class="sum">${km(route.km)} · ${dur(route.sec)}${route.delay>=60?`<span class="dl ${dCls(route.delay)}"> (+${Math.round(route.delay/60)} min Stau)</span>`:''} · ${ranked.length} ${ranked.length===1?'Tankstelle':'Tankstellen'} mit ${FN[S.fuel]} bis ${route.corr} km neben der Strecke${top[0]?` · günstigste <b>${fmt(top[0].p)} €</b>`:''}<div class="mut">Preise von ${hhmm(route.t)} Uhr · Abfahrt ${when(ranked.dep)}${route.depAt?` · Verkehr: erwartet für ${hhmm(route.depAt)} Uhr`:''}</div>${Math.abs(ranked.dep-(route.depAt||route.t))>10*60000?`<div class="facts warn">${ic('warn')}Abfahrt geändert: Route neu berechnen, damit der Verkehr zur Abfahrtszeit passt.</div>`:''}${ranked.hid?`<div class="mut">${ranked.hid} ${ranked.hid===1?'Tankstelle':'Tankstellen'} durch Filter ausgeblendet (${[S.open&&'nur offene',S.noBAB&&'ohne Autobahn',S.hide.length&&`${S.hide.length} ${S.hide.length===1?'Marke':'Marken'}`].filter(Boolean).join(', ')})</div>`:''}${need.length?`<div class="mut">Nur mit ${need.map(c=>POI[c].label).join(' und ')}, bei Ankunft geöffnet: ${pend.length?`prüfe weitere Tankstellen … (${top.length} gefunden)`:`${top.length} gefunden${poiOut?`, ${poiOut} ohne`:''}${capped?' (die günstigsten 30 geprüft)':''}`}</div>`:''}${calcOn()&&ranked.length>1?`<div class="mut">Vergleich: mittlere Kosten aller Tankstellen der Strecke (Median) für ${String(S.lit).replace('.',',')} l, inkl. Umweg</div>`:''}${rngInfo}${noonInfo}${incInfo}${rCats().length?`<div class="mut">${route.poiErr?`Orte in der Nähe konnten nicht geladen werden (TomTom: ${esc(route.poiErr)}).`:'Orte in der Nähe und Öffnungszeiten: TomTom'}</div>`:''}</div><div class="row"><button data-rmap>Auf Karte zeigen</button><button class="sec" data-rclear>Route löschen</button></div>`;
   $('#ritems').innerHTML=top.map((o,i)=>{
     const x=mid-o.c,sv=calc&&ranked.length>1&&Math.abs(x)>=0.005?`<div class="facts"><span class="${x>0?'g':'r'}" aria-label="${eur(x)} ${x>0?'günstiger':'teurer'} als der Median der Strecke, inklusive Umweg">${ic('euro')}${x>0?'−':'+'}${eur(x)} ggü. Median</span><span class="mut">inkl. Umweg</span></div>`:'';
     const arr=hhmm(o.arr);
@@ -1257,7 +1289,10 @@ $('#ac').onclick=e=>{
 /* Gemerkte Routen („Strecke zu Oma“): Antippen rechnet sofort, lange drücken zum Umbenennen oder Löschen */
 function drawRfav(){
   $('#rfav').innerHTML=S.routes.map(r=>`<button data-rfav="${esc(r.id)}">${esc(r.name)}</button>`).join('')+'<button data-radd>＋ Route merken</button>';
+  // App: die ersten drei gemerkten Routen als Shortcuts am App-Symbol
+  if(APP)try{Android.setShortcuts?.(JSON.stringify(S.routes.slice(0,3).map(r=>({id:r.id,name:r.name}))))}catch{}
 }
+function runRoute(r){setPlace($('#rs'),r.start,r.sPos);setPlace($('#rd'),r.dest,r.dPos);$('#rc').value=String(r.corr||2);calcRoute()}
 async function saveRoute(){
   const start=$('#rs').value.trim(),dest=$('#rd').value.trim();
   if(!start&&!dest)return $('#rstat').textContent='Erst Start oder Ziel eingeben, dann merken.';
@@ -1286,8 +1321,7 @@ rfb.onclick=e=>{
   if(rlp){rlp=false;return}
   if(e.target.closest('[data-radd]'))return saveRoute();
   const b=e.target.closest('[data-rfav]');if(!b||$('#rgo').disabled)return;
-  const r=S.routes.find(x=>x.id===b.dataset.rfav);if(!r)return;
-  setPlace($('#rs'),r.start,r.sPos);setPlace($('#rd'),r.dest,r.dPos);$('#rc').value=String(r.corr||2);calcRoute();
+  const r=S.routes.find(x=>x.id===b.dataset.rfav);if(r)runRoute(r);
 };
 drawRfav();
 $('#rsum').addEventListener('click',e=>{
@@ -1297,7 +1331,7 @@ $('#rsum').addEventListener('click',e=>{
 
 function show(v){
   S.view=v;
-  for(const k of['map','list','favs','route'])$('#'+k).hidden=k!==v;
+  for(const k of['map','list','favs','route','log'])$('#'+k).hidden=k!==v;
   $('#views').hidden=v!=='map';
   $('#sf').hidden=v==='route';if(v==='route')hideRes();
   $$('nav button').forEach(b=>b.classList.toggle('on',b.dataset.v===v));
@@ -1305,6 +1339,7 @@ function show(v){
   if(v==='list')list();
   if(v==='favs')favs();
   if(v==='route')renderRoute();
+  if(v==='log')drawLog();
 }
 function redraw(){pins();renderRoute();if(S.view==='list')list();if(S.view==='favs')favs()}
 
@@ -1330,7 +1365,7 @@ function openSettings(){
   $('#wgrp').innerHTML='<option value="all">Alle Favoriten (die ersten 5)</option>'+S.groups.map(g=>`<option value="${esc(g.id)}">Gruppe ${esc(g.name)}</option>`).join('');
   $('#wgrp').value=S.groups.some(g=>g.id===S.wgrp)?S.wgrp:'all';$('#bgint').value=String(S.bgint);
   if(APP){
-    $('#aon').checked=!!AREA.on;$('#afuel').value=AREA.fuel||S.fuel;$('#abelow').value=AREA.below?String(AREA.below).replace('.',','):'';
+    $('#aon').checked=!!AREA.on;$('#awid').checked=!!AREA.wid;$('#afuel').value=AREA.fuel||S.fuel;$('#abelow').value=AREA.below?String(AREA.below).replace('.',','):'';
     $('#arad').value=String(AREA.rad||10);$('#abelow').required=$('#aon').checked;aDraft=AREA.lat!=null?{lat:AREA.lat,lng:AREA.lng,src:AREA.src,t:AREA.t}:null;aLabel();bgStatus();
   }
   const cur=LS.get('start','');
@@ -1361,7 +1396,7 @@ $('#flt').addEventListener('close',e=>{
 });
 
 /* Daten sichern und wiederherstellen */
-const KEYS=['favs','order','groups','views','start','lit','cons','fuel','sort','open','hide','noBAB','nav','hist','traffic','tstyle','incf','base','alarms','wgrp','bgint','area','routes','noonbuf','pois','poirad'];
+const KEYS=['favs','order','groups','views','start','lit','cons','fuel','sort','open','hide','noBAB','nav','hist','traffic','tstyle','incf','base','alarms','wgrp','bgint','area','log','routes','noonbuf','pois','poirad'];
 async function exportData(){
   const data={app:'spritpreise',version:1,exported:new Date().toISOString()};
   KEYS.forEach(k=>{const v=LS.get(k,null);if(v!=null)data[k]=v});
@@ -1398,10 +1433,12 @@ $('#dlg').addEventListener('close',e=>{
   S.pois={};for(const k in POI)S.pois[k]=$('#poi-'+k).checked;S.poirad=+$('#poirad').value;LS.set('pois',S.pois);LS.set('poirad',S.poirad);
   if(APP){
     S.wgrp=$('#wgrp').value;S.bgint=+$('#bgint').value;LS.set('wgrp',S.wgrp);LS.set('bgint',S.bgint);
-    const on=$('#aon').checked,below=num($('#abelow').value);
-    if(on&&!aDraft)aDraft=aCenter(S.me?'me':'map');
-    AREA={on:on&&below>0,fuel:$('#afuel').value,below,rad:+$('#arad').value,...(aDraft||{})};LS.set('area',AREA);
+    const on=$('#aon').checked,wid=$('#awid').checked,below=num($('#abelow').value);
+    if((on||wid)&&!aDraft)aDraft=aCenter(S.me?'me':'map');
+    AREA={on:on&&below>0,wid,fuel:$('#afuel').value,below,rad:+$('#arad').value,...(aDraft||{})};LS.set('area',AREA);
     if(AREA.on)Android.requestNotify?.();
+    // Widget-Zeile und Alarm gleich mit den neuen Einstellungen abfragen (nach dem Abgleich unten)
+    if(AREA.on||AREA.wid)setTimeout(()=>Android.refreshNow?.(),500);
   }
   if($('#incf').value!==S.incf){S.incf=$('#incf').value;LS.set('incf',S.incf);incDraw();incLoad()}
   const tt=$('#tt').value.trim(),ts=$('#tstyle').value;
@@ -1432,7 +1469,7 @@ function bgStatus(){
   const b=(w,t)=>`<button type="button" data-sys="${w}">${t}</button>`;
   $('#bgstat').innerHTML='<b>Hintergrund-Status</b>'
     +row('Letzte Abfrage',!s.run?'noch keine':esc(when(s.run))+(s.err?` – ${esc(bgErr(s.err))}`:s.n>0?` ✓ ${s.n} ${s.n===1?'Tankstelle':'Tankstellen'}`:' ✓')+(late?' – verzögert':''),s.err||late?'bad':s.run?'ok':'')
-    +row('Geplant',s.planErr?'nein – '+esc(s.planErr):s.planned?`alle ${s.planned} min`:'nein (kein Widget, Preisalarm oder Umkreis-Alarm)',s.planErr?'bad':'')
+    +row('Geplant',s.planErr?'nein – '+esc(s.planErr):s.planned?`alle ${s.planned} min`:'nein (kein Widget, Preisalarm oder Umkreis)',s.planErr?'bad':'')
     +row('Benachrichtigungen',s.notify?'erlaubt':'blockiert',s.notify?'ok':'bad',s.notify?'':b('notify','Erlauben'))
     +row('Akku',s.battery?'keine Einschränkung':'eingeschränkt',s.battery?'ok':'bad',s.battery?'':b('battery','Ändern'))
     +(xi?row('Autostart','bei Xiaomi nötig','',b('autostart','Prüfen')):'')
@@ -1444,6 +1481,89 @@ $('#bgstat').addEventListener('click',e=>{
   if(e.target.id==='bgnow'){syncNative();Android.refreshNow?.();e.target.textContent='Fragt ab …';e.target.disabled=true;setTimeout(bgStatus,8000)}
 });
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&$('#dlg').open)bgStatus()});
+
+/* Tank-Logbuch: Tankvorgänge mit Liter, Preis, Betrag und km-Stand. Daraus Verbrauch (voll bis voll),
+   Kosten je Monat, Durchschnittspreis und Ersparnis gegenüber dem Median der Umgebung beim Tanken. */
+let LOG=LS.get('log',[]),lgEdit=null,lgStations=new Map();
+const saveLog=()=>{LOG.sort((a,b)=>a.t-b.t);LS.set('log',LOG)};
+const dtLocal=ms=>{const d=new Date(ms-new Date(ms).getTimezoneOffset()*6e4);return d.toISOString().slice(0,16)};
+const sName=s=>[s.brand||s.name,s.place].filter(Boolean).join(' ');
+const nf=(v,d=2)=>v.toLocaleString('de-DE',{minimumFractionDigits:d,maximumFractionDigits:d});
+function logStats(){
+  const L=[...LOG].sort((a,b)=>a.t-b.t);let km=0,lit=0,fills=0,lastOdo=null,acc=0;
+  for(const e of L){
+    if(e.full&&e.odo){if(lastOdo!=null&&e.odo>lastOdo){km+=e.odo-lastOdo;lit+=acc+e.l;fills++}lastOdo=e.odo;acc=0}
+    else if(e.full){lastOdo=null;acc=0}else acc+=e.l;
+  }
+  const mon=new Map();for(const e of L){const k=new Date(e.t).toLocaleDateString('de-DE',{month:'long',year:'numeric'});const m=mon.get(k)||{eur:0,l:0};m.eur+=e.eur;m.l+=e.l;mon.set(k,m)}
+  const sl=L.reduce((a,e)=>a+e.l,0),se=L.reduce((a,e)=>a+e.eur,0),wm=L.filter(e=>e.med);
+  return{cons:km>0?lit/km*100:0,km,fills,mon:[...mon].reverse(),avg:sl?se/sl:0,saved:wm.reduce((a,e)=>a+(e.med-e.p)*e.l,0),withMed:wm.length};
+}
+function drawLog(){
+  const st=logStats(),L=[...LOG].sort((a,b)=>b.t-a.t);
+  $('#log').innerHTML=`<div class="row" style="margin-top:0"><button id="lgAdd">＋ Tankvorgang</button></div>`
+    +(L.length?`<div class="lstat">`
+      +(st.cons?`<div>Verbrauch: <b>${nf(st.cons,1)} l/100 km</b> <span class="mut">(${st.fills} ${st.fills===1?'Füllung':'Füllungen'}, ${st.km.toLocaleString('de-DE')} km)</span>${Math.abs(st.cons-S.cons)>=0.1?` <button type="button" id="lgCons">Für Umwegrechner übernehmen</button>`:''}</div>`
+        :'<div class="mut">Verbrauch: zweimal vollgetankt mit km-Stand eintragen, dann steht er hier.</div>')
+      +st.mon.slice(0,6).map(([k,m])=>`<div>${esc(k)}: <b>${nf(m.eur)} €</b> <span class="mut">(${nf(m.l,1)} l)</span></div>`).join('')
+      +`<div>Ø Preis: <b>${fmt(st.avg)} €/l</b>${st.withMed?` · <span class="${st.saved>=0?'g':''}">${st.saved>=0?'gespart':'mehr bezahlt'} ggü. Median der Umgebung: ${nf(Math.abs(st.saved))} €</span>`:''}</div></div>`
+      +L.map(e=>`<button class="lrow" data-lg="${esc(e.id)}"><b>${esc(new Date(e.t).toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit',year:'2-digit'}))} · ${esc(e.name||'Tankstelle')}</b><br><span class="mut">${FN[e.fuel]}: ${nf(e.l,2)} l × ${fmt(e.p)} € = <b>${nf(e.eur)} €</b>${e.odo?` · ${e.odo.toLocaleString('de-DE')} km`:''}${e.full?'':' · nicht voll'}</span></button>`).join('')
+    :'<p class="empty">Noch keine Tankvorgänge. Nach dem Tanken auf „＋ Tankvorgang“ tippen: Tankstelle und Preis sind vorbelegt.</p>');
+}
+// Neuer Eintrag: nächste Tankstelle am Standort (bis 300 m) mit ihrem aktuellen Preis vorbelegen
+function openLog(e){
+  lgEdit=e||null;lgStations=new Map();
+  const r=S.me||ref(),near=S.stations.map(s=>({s,d:dist(r,[s.lat,s.lng])})).sort((a,b)=>a.d-b.d).slice(0,15).map(o=>o.s);
+  for(const s of[...near,...Object.values(S.favs)])lgStations.set(`${sName(s)}${s.street?', '+s.street:''}`,s);
+  $('#lgStl').innerHTML=[...lgStations.keys()].map(k=>`<option value="${esc(k)}">`).join('');
+  const here=!e&&S.me&&near[0]&&dist(S.me,[near[0].lat,near[0].lng])<=0.3?near[0]:null;
+  const lastOdo=[...LOG].sort((a,b)=>b.t-a.t).find(x=>x.odo)?.odo;
+  $('#lgT').textContent=e?'Tankvorgang bearbeiten':'Tankvorgang';
+  $('#lgSt').value=e?e.name:here?[...lgStations].find(([,s])=>s===here)[0]:'';
+  $('#lgDt').value=dtLocal(e?e.t:Date.now());$('#lgF').value=e?.fuel||S.fuel;
+  const cur=here&&n(here[S.fuel]);
+  $('#lgL').value=e?String(e.l).replace('.',','):'';$('#lgP').value=e?String(e.p).replace('.',','):cur?String(cur).replace('.',','):'';
+  $('#lgB').value=e?nf(e.eur).replace(/\./g,''):'';$('#lgK').value=e?.odo?String(e.odo):'';$('#lgFull').checked=e?!!e.full:true;
+  $('#lgK').placeholder=lastOdo?`zuletzt ${lastOdo.toLocaleString('de-DE')}`:'optional';
+  $('#lgDel').hidden=!e;$('#lgInfo').textContent='Zwei von Liter, Preis und Betrag reichen, der dritte Wert wird berechnet.';
+  $('#logd').showModal();
+}
+// Preis vorschlagen, wenn eine bekannte Tankstelle oder eine andere Sorte gewählt wird
+const lgPrice=()=>{const s=lgStations.get($('#lgSt').value),v=s&&n(s[$('#lgF').value]);if(v&&!lgEdit)$('#lgP').value=String(v).replace('.',',')};
+$('#lgSt').addEventListener('change',lgPrice);$('#lgF').addEventListener('change',lgPrice);
+$('#lgf').addEventListener('submit',e=>{
+  const how=e.submitter?.value;
+  if(how==='del'){if(lgEdit){LOG=LOG.filter(x=>x!==lgEdit);saveLog()}return setTimeout(drawLog)}
+  if(how!=='ok')return;
+  let l=num($('#lgL').value),p=num($('#lgP').value),eur=num(String($('#lgB').value).replace(/\.(?=\d{3}\b)/g,''));
+  if(l&&p&&!eur)eur=Math.round(l*p*100)/100;else if(l&&eur&&!p)p=Math.round(eur/l*1000)/1000;else if(p&&eur&&!l)l=Math.round(eur/p*100)/100;
+  const t=new Date($('#lgDt').value).getTime(),odo=Math.round(num($('#lgK').value))||0;
+  if(!(l>0&&p>0&&eur>0)||!t){e.preventDefault();$('#lgInfo').textContent='Bitte zwei von Liter, Preis und Betrag eintragen.';return}
+  if(p<0.5||p>4){e.preventDefault();$('#lgInfo').textContent='Der Preis je Liter wirkt unplausibel. Bitte prüfen.';return}
+  const s=lgStations.get($('#lgSt').value),fuel=$('#lgF').value;
+  // Median der Umgebung zum Zeitpunkt des Tankens: aus der geladenen Liste, wenn sie frisch ist
+  const ps=lastQ&&Date.now()-lastQ.t<2*36e5&&Math.abs(t-Date.now())<36e5?S.stations.map(x=>n(x[fuel])).filter(Boolean):[];
+  const x={id:lgEdit?.id||'l'+Date.now(),t,name:$('#lgSt').value.trim()||'Tankstelle',sid:s?.id||lgEdit?.sid||'',fuel,l,p,eur,odo,full:$('#lgFull').checked,
+    med:lgEdit?lgEdit.med:ps.length>=3?median(ps):0};
+  if(lgEdit)Object.assign(lgEdit,x);else LOG.push(x);
+  saveLog();setTimeout(drawLog);
+});
+$('#log').addEventListener('click',e=>{
+  if(e.target.closest('#lgAdd'))return openLog();
+  if(e.target.closest('#lgCons')){const c=Math.round(logStats().cons*10)/10;S.cons=c;LS.set('cons',c);msg(`Verbrauch ${nf(c,1)} l/100 km übernommen`);setTimeout(()=>msg(''),3000);return drawLog()}
+  const b=e.target.closest('[data-lg]');if(b)openLog(LOG.find(x=>x.id===b.dataset.lg));
+});
+
+/* Aus einem Shortcut am App-Symbol: „In der Nähe“ (Liste am Standort, günstigste zuerst), Favoriten oder eine gemerkte Route */
+window.appView=(kind,what)=>{
+  $$('dialog').forEach(d=>d.open&&d.close());
+  if(kind==='route'){const r=S.routes.find(x=>x.id===what);show('route');if(r&&!$('#rgo').disabled)runRoute(r);return}
+  if(what==='favs')return show('favs');
+  if(what==='near'){
+    S.sort=calcOn()?'save':'price';show('list');
+    locate();
+  }
+};
 
 /* Aus Widget-Zeile oder Benachrichtigung: Favorit in der Liste hervorheben, sonst Karte an der Tankstelle */
 window.appOpen=(id,lat,lng)=>{

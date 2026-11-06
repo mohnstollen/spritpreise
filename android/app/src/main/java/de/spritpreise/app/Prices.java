@@ -113,9 +113,21 @@ final class Prices {
     }
 
     /** Umkreis-Alarm eingeschaltet und vollständig (Mittelpunkt und Grenze)? */
-    private static boolean areaOn(JSONObject cfg) {
+    private static boolean areaAlarm(JSONObject cfg) {
         JSONObject a = obj(cfg, "area");
         return a.optBoolean("on") && a.has("lat") && a.has("lng") && a.optDouble("below", 0) > 0;
+    }
+
+    /** Umkreis wird gebraucht: für den Alarm oder für die Zeile im Widget (nur, wenn ein Widget existiert). */
+    private static boolean areaUsed(Context c, JSONObject cfg) {
+        JSONObject a = obj(cfg, "area");
+        return areaAlarm(cfg) || a.optBoolean("wid") && a.has("lat") && a.has("lng") && widgetIds(c).length > 0;
+    }
+
+    /** Kennung des Umkreises: ändern sich Mittelpunkt, Radius oder Sorte, gilt das alte Ergebnis nicht mehr. */
+    private static String areaKey(JSONObject a) {
+        return a.optDouble("lat") + "|" + a.optDouble("lng") + "|" + Math.max(1, Math.min(25, a.optInt("rad", 10)))
+                + "|" + a.optString("fuel", "e5");
     }
 
     /** Alle Stationen, die im Hintergrund gebraucht werden: Widget-Favoriten und Alarme. */
@@ -148,7 +160,7 @@ final class Prices {
         JobScheduler js = c.getSystemService(JobScheduler.class);
         JSONObject cfg = json(c, CFG);
         int minutes = cfg.optInt("interval", 30);
-        boolean need = !cfg.optString("key").isEmpty() && minutes > 0 && (areaOn(cfg) || !ids(cfg).isEmpty()
+        boolean need = !cfg.optString("key").isEmpty() && minutes > 0 && (areaUsed(c, cfg) || !ids(cfg).isEmpty()
                 && (obj(cfg, "alarms").length() > 0 || widgetIds(c).length > 0));
         if (!need) {
             js.cancel(JOB_PERIODIC);
@@ -181,7 +193,7 @@ final class Prices {
         JSONObject cfg = json(c, CFG);
         String key = cfg.optString("key");
         List<String> ids = ids(cfg);
-        if (key.isEmpty() || ids.isEmpty() && !areaOn(cfg)) return -1;
+        if (key.isEmpty() || ids.isEmpty() && !areaUsed(c, cfg)) return -1;
         JSONObject cur = json(c, PRICES);
         long t = System.currentTimeMillis();
         for (int i = 0; i < ids.size(); i += 10) {
@@ -206,7 +218,6 @@ final class Prices {
         put(c, PRICES, cur);
         JSONObject old = json(c, STATE), state = new JSONObject();
         checkAlarms(c, cfg, cur, old, state);
-        updateWidgets(c);
         // Zustand des Umkreis-Alarms behalten, falls dessen Abfrage scheitert (sonst käme die Meldung doppelt)
         for (Iterator<String> it = old.keys(); it.hasNext(); ) {
             String k = it.next();
@@ -216,15 +227,16 @@ final class Prices {
             checkArea(c, cfg, key, old, state);
         } finally {
             put(c, STATE, state);
+            updateWidgets(c);
         }
         return ids.size();
     }
 
-    /** Umkreis-Alarm: günstigste geöffnete Tankstelle im Umkreis (eine Abfrage); meldet einmal,
-     *  erneut erst, nachdem der Preis wieder über der Grenze lag. */
+    /** Umkreis: günstigste geöffnete Tankstelle im Umkreis (eine Abfrage), für die Widget-Zeile gemerkt.
+     *  Der Alarm meldet einmal, erneut erst, nachdem der Preis wieder über der Grenze lag. */
     private static void checkArea(Context c, JSONObject cfg, String key, JSONObject old, JSONObject state)
             throws IOException, JSONException {
-        if (!areaOn(cfg)) return;
+        if (!areaUsed(c, cfg)) return;
         JSONObject a = obj(cfg, "area");
         String fuel = a.optString("fuel", "e5");
         double below = a.optDouble("below"), lat = a.optDouble("lat"), lng = a.optDouble("lng");
@@ -248,7 +260,13 @@ final class Prices {
             return;
         }
         double v = best.optDouble("price");
-        note(c, "area", best.optString("brand", best.optString("name")).trim() + " " + euro(v));
+        String brand = best.optString("brand").trim(), place = best.optString("place").trim();
+        if (brand.isEmpty()) brand = best.optString("name", "Tankstelle").trim();
+        note(c, "area", brand + " " + euro(v));
+        note(c, "areaBest", new JSONObject().put("n", brand + (place.isEmpty() ? "" : " " + place)).put("p", v)
+                .put("id", best.optString("id")).put("lat", best.optDouble("lat")).put("lng", best.optDouble("lng"))
+                .put("fuel", fuel).put("k", areaKey(a)).put("t", System.currentTimeMillis()));
+        if (!areaAlarm(cfg)) return;
         if (v <= below + 1e-9) {
             if (!was) notifyArea(c, best, fuel, v, below);
             state.put(sk, true);
@@ -453,7 +471,19 @@ final class Prices {
             v.setViewVisibility(ROWS[i], View.VISIBLE);
             v.setOnClickPendingIntent(ROWS[i], openStation(c, id, Double.NaN, Double.NaN, 100 + i));
         }
-        v.setViewVisibility(R.id.empty, n == 0 ? View.VISIBLE : View.GONE);
+        // Zusatzzeile: günstigste im Umkreis (Ergebnis der letzten Hintergrundabfrage, höchstens 6 Stunden alt)
+        JSONObject area = obj(cfg, "area"), ab = obj(json(c, STATUS), "areaBest");
+        boolean showArea = area.optBoolean("wid") && ab.has("p") && areaKey(area).equals(ab.optString("k"))
+                && System.currentTimeMillis() - ab.optLong("t") < 6 * 3_600_000L;
+        if (showArea) {
+            String af = ab.optString("fuel", fuel);
+            v.setTextViewText(R.id.na, "◎ " + ab.optString("n") + (af.equals(fuel) ? "" : " · " + fuelName(af)));
+            v.setTextViewText(R.id.pa, price(ab.optDouble("p")));
+            v.setOnClickPendingIntent(R.id.ra, openStation(c, ab.optString("id"), ab.optDouble("lat"), ab.optDouble("lng"), 99));
+            newest = Math.max(newest, ab.optLong("t"));
+        }
+        v.setViewVisibility(R.id.ra, showArea ? View.VISIBLE : View.GONE);
+        v.setViewVisibility(R.id.empty, n == 0 && !showArea ? View.VISIBLE : View.GONE);
         v.setTextViewText(R.id.title, "Spritpreise · " + fuelName(fuel));
         String pattern = DateUtils.isToday(newest) ? "HH:mm" : "dd.MM. HH:mm";
         v.setTextViewText(R.id.time, newest > 0
