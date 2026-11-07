@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Kamerafoto für den Beleg-Scan: nur dieser Ordner im Cache wird an die Kamera-App freigegeben -->
+<paths>
+    <cache-path name="scan" path="scan/" />
+</paths>

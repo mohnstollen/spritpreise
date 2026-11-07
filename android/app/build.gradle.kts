@@ -64,3 +64,10 @@ val copyWeb = tasks.register<Copy>("copyWeb") {
     into(layout.buildDirectory.dir("generated/web"))
 }
 tasks.named("preBuild") { dependsOn(copyWeb) }
+
+dependencies {
+    // Beleg-Scan: Texterkennung auf dem Gerät, das Modell kommt über die Google-Play-Dienste (kleine APK)
+    implementation("com.google.android.gms:play-services-mlkit-text-recognition:19.0.1")
+    // FileProvider für das Kamerafoto
+    implementation("androidx.core:core:1.13.1")
+}
