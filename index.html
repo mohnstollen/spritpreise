@@ -133,6 +133,9 @@ dialog select{display:block;width:100%;margin-top:6px;padding:10px;border:1px so
 .card.hl{outline:3px solid var(--amber);outline-offset:1px}
 #keyst.ok{color:var(--good);font-weight:600}#keyst.bad{color:var(--bad);font-weight:600}
 #keyst{font-weight:400;font-size:14px}
+#lgScan{border:1px solid var(--line);background:none;color:var(--fg);border-radius:8px;padding:6px 10px;font-weight:600;font-size:14px}
+#logd input.scan,#logd select.scan{outline:2px solid var(--amber);outline-offset:1px}
+#lgInfo.bad{color:var(--bad);font-weight:600}
 .facts.bt{flex-wrap:nowrap;align-items:flex-start;gap:6px}.facts.bt .ic{margin-top:2px}.facts.bt span{display:inline}
 .two label{flex:1;min-width:0}
 @media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important}}
@@ -387,7 +390,7 @@ dialog h4{margin:14px 0 6px}
 </dialog>
 <dialog id="logd">
   <form method="dialog" id="lgf">
-    <h3 id="lgT">Tankvorgang</h3>
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:12px"><h3 id="lgT" style="margin:0">Tankvorgang</h3><button type="button" id="lgScan" hidden>📷 Beleg scannen</button></div>
     <label>Tankstelle <input id="lgSt" list="lgStl" autocomplete="off" placeholder="Name oder Ort"></label><datalist id="lgStl"></datalist>
     <label style="margin-top:12px">Datum und Uhrzeit <input type="datetime-local" id="lgDt" required></label>
     <div class="two"><label>Sorte <select id="lgF"><option value="e5">Super E5</option><option value="e10">Super E10</option><option value="diesel">Diesel</option></select></label>
@@ -1549,7 +1552,8 @@ function openLog(e){
   $('#lgL').value=e?String(e.l).replace('.',','):'';$('#lgP').value=e?String(e.p).replace('.',','):cur?String(cur).replace('.',','):'';
   $('#lgB').value=e?nf(e.eur).replace(/\./g,''):'';$('#lgK').value=e?.odo?String(e.odo):'';$('#lgFull').checked=e?!!e.full:true;
   $('#lgK').placeholder=lastOdo?`zuletzt ${lastOdo.toLocaleString('de-DE')}`:'optional';
-  $('#lgDel').hidden=!e;$('#lgInfo').textContent='Zwei von Liter, Preis und Betrag reichen, der dritte Wert wird berechnet.';
+  $('#lgDel').hidden=!e;$('#lgInfo').textContent='Zwei von Liter, Preis und Betrag reichen, der dritte Wert wird berechnet.';$('#lgInfo').className='mut';
+  $('#lgScan').hidden=!(APP&&window.Android?.scanReceipt);$$('#logd .scan').forEach(x=>x.classList.remove('scan'));
   $('#logd').showModal();
 }
 // Preis vorschlagen, wenn eine bekannte Tankstelle oder eine andere Sorte gewählt wird
@@ -1572,6 +1576,80 @@ $('#lgf').addEventListener('submit',e=>{
   if(lgEdit)Object.assign(lgEdit,x);else LOG.push(x);
   saveLog();setTimeout(drawLog);
 });
+/* Beleg-Scan (nur App): Die Android-Seite liefert die erkannten Zeilen mit Position (x, y = Mitte, h = Höhe).
+   Daraus werden Druckzeilen gebildet, weil Beschriftung und Betrag oft als getrennte Spalten erkannt werden. */
+function ocrRows(lines){
+  const L=lines.filter(l=>l&&l.t).sort((a,b)=>a.y-b.y),rows=[];
+  for(const l of L){
+    const r=rows[rows.length-1];
+    if(r&&Math.abs(l.y-r.y)<=Math.max(l.h,r.h)*0.55)r.ls.push(l);else rows.push({y:l.y,h:l.h,ls:[l]});
+  }
+  return rows.map(r=>r.ls.sort((a,b)=>a.x-b.x).map(l=>l.t.trim()).join('  '));
+}
+const dec=v=>parseFloat(String(v).replace(',','.'));
+const normStreet=v=>String(v||'').toLowerCase().replace(/ß/g,'ss').replace(/stra?ss?e\b|str\.?/g,'str').replace(/[^a-z0-9äöü]/g,'');
+// Kassenbeleg lesen: Liter, Preis je Liter, Gesamtbetrag, Datum/Uhrzeit, Sorte, Tankstelle (Name, Straße, PLZ, Ort)
+function parseReceipt(rows){
+  const r={},R=rows.map(x=>x.replace(/\s+/g,' ').trim()).filter(Boolean);
+  // Preis je Liter „2,009 EUR/l“ (OCR liest das l oft als 1 oder I)
+  for(const x of R){
+    const m=x.match(/(\d[.,]\d{3})\s*(?:EUR|€)?\s*\/\s*[lI1|](?![\d,])/i);
+    if(m&&dec(m[1])>0.5&&dec(m[1])<4){r.p=dec(m[1]);
+      const l=x.replace(m[0],' ').match(/(\d{1,3}[.,]\d{2,3})\s*[lI1|](?=\s|$)/);if(l)r.l=dec(l[1]);break}
+  }
+  // Liter „37,85 l“ auf einer eigenen Zeile
+  if(!r.l)for(const y of R){const x=y.replace(/\d+[.,]\d{2}\s*(?:EUR|€)\S*|\S*%/gi,' ');const l=x.match(/(?:^|\s)(\d{1,3}[.,]\d{2,3})\s*[lI1|](?=\s|$)/);if(l&&dec(l[1])>=1&&dec(l[1])<=200){r.l=dec(l[1]);break}}
+  // Gesamtbetrag, sonst Summe/Betrag/Brutto
+  const amt=x=>{const a=[...x.matchAll(/(\d{1,4}[.,]\d{2})(?![\d%])/g)];return a.length?dec(a[a.length-1][1]):0};
+  for(const re of[/gesamtbetrag|gesamtsumme|zu zahlen|summe|total/i,/^betrag\b/i,/brutto/i]){
+    for(let i=0;i<R.length&&!r.eur;i++)if(re.test(R[i])){const v=amt(R[i])||(R[i+1]&&!/[a-z]{4}/i.test(R[i+1].replace(/EUR/i,''))?amt(R[i+1]):0);if(v>1)r.eur=v}
+    if(r.eur)break;
+  }
+  // Datum und Uhrzeit: erste Angabe auf dem Beleg (Belegzeit)
+  for(const x of R){const m=x.match(/(\d{1,2})\.(\d{1,2})\.(\d{4}|\d{2})\D{1,3}(\d{1,2}):(\d{2})/);
+    if(m){const y=+m[3]<100?2000+ +m[3]:+m[3],d=new Date(y,m[2]-1,+m[1],+m[4],+m[5]);if(!isNaN(d)&&+m[2]>=1&&+m[2]<=12){r.t=d.getTime();break}}}
+  // Sorte: E10 vor Super/E5 prüfen („Super 95 E10“)
+  for(const x of R){if(/diesel/i.test(x)){r.fuel='diesel';break}if(/\bE\s?10\b/i.test(x)){r.fuel='e10';break}if(/super|\bE\s?5\b|benzin|v-power|ultimate/i.test(x)){r.fuel='e5';break}}
+  // Tankstelle: oberste Textzeile, Straße mit Hausnummer, PLZ und Ort
+  for(let i=0;i<Math.min(R.length,12);i++){
+    const m=R[i].match(/^(\d{5})\s+([A-ZÄÖÜa-zäöüß][\wÄÖÜäöüß .\-()]+)$/);
+    if(m){r.plz=m[1];r.town=m[2].trim();const s=R[i-1]&&R[i-1].match(/^([A-ZÄÖÜa-zäöüß][\wÄÖÜäöüß .\-]+?)\s*(\d+\s?[a-z]?)$/);if(s){r.street=s[1].trim();r.no=s[2].replace(/\s/g,'')}
+      r.head=R.slice(0,Math.max(1,i-(s?2:1))).filter(x=>/[a-zäöü]{3}/i.test(x)&&!/tankstelle|tel|fax|ust/i.test(x))[0]||'';break}
+  }
+  return r;
+}
+// Tankstelle zum Beleg: gleiche PLZ und Straße bei geladenen Tankstellen, Favoriten oder der Route
+function receiptStation(r){
+  if(!r.plz)return null;
+  const all=[...S.stations,...Object.values(S.favs),...(route?.cands||[]).map(o=>o.s)];
+  return all.find(s=>String(s.postCode||'')===r.plz&&r.street&&normStreet(s.street).slice(0,4)===normStreet(r.street).slice(0,4))||null;
+}
+window.scanResult=(json,err)=>{
+  const b=$('#lgScan');b.disabled=false;b.textContent='📷 Beleg scannen';
+  const info=$('#lgInfo');
+  if(!json){if(err){info.className='bad';info.textContent=/download|herunter/i.test(err)?'Die Texterkennung wird noch eingerichtet. Bitte in einer Minute erneut versuchen.':'Scan fehlgeschlagen: '+err}return}
+  let rows;try{rows=ocrRows(JSON.parse(json))}catch{rows=[]}
+  const r=parseReceipt(rows),got=[],mark=el=>el.classList.add('scan');
+  const set=(sel,v,name)=>{if(v==null)return;$(sel).value=v;mark($(sel));got.push(name)};
+  const s=receiptStation(r);
+  if(s){const k=`${sName(s)}${s.street?', '+s.street:''}`;lgStations.set(k,s);set('#lgSt',k,'Tankstelle')}
+  else if(r.head||r.town)set('#lgSt',[r.head,r.town].filter(Boolean).join(', '),'Tankstelle');
+  if(r.t)set('#lgDt',dtLocal(r.t),'Datum');
+  if(r.fuel)set('#lgF',r.fuel,'Sorte');
+  if(r.l)set('#lgL',String(r.l).replace('.',','),'Liter');
+  if(r.p)set('#lgP',String(r.p).replace('.',','),'Preis');
+  if(r.eur)set('#lgB',r.eur.toFixed(2).replace('.',','),'Betrag');
+  const miss=['Liter','Preis','Betrag','Datum','Sorte','Tankstelle'].filter(x=>!got.includes(x));
+  const off=r.l&&r.p&&r.eur&&Math.abs(r.l*r.p-r.eur)>0.05;
+  info.className=off||!got.length?'bad':'mut';
+  info.textContent=!got.length?'Auf dem Foto wurde kein Tankbeleg erkannt. Bitte gerade und scharf fotografieren oder von Hand eintragen.'
+    :off?`Liter × Preis (${nf(r.l*r.p)} €) passt nicht zum Betrag (${nf(r.eur)} €). Bitte prüfen.`
+    :`Erkannt: ${got.join(', ')}.${miss.length?' Nicht erkannt: '+miss.join(', ')+'.':''} Bitte prüfen und speichern.`;
+};
+$('#lgScan').onclick=()=>{const b=$('#lgScan');b.disabled=true;b.textContent='Scanne …';try{Android.scanReceipt()}catch{window.scanResult(null,'nicht verfügbar')}};
+// Von Hand geänderte Felder nicht mehr als „aus dem Scan“ markieren
+$('#logd').addEventListener('input',e=>e.target.classList?.remove('scan'));
+
 $('#log').addEventListener('click',e=>{
   if(e.target.closest('#lgAdd'))return openLog();
   if(e.target.closest('#lgCons')){const c=Math.round(logStats().cons*10)/10;S.cons=c;LS.set('cons',c);msg(`Verbrauch ${nf(c,1)} l/100 km übernommen`);setTimeout(()=>msg(''),3000);return drawLog()}
