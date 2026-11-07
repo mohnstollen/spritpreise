@@ -131,6 +131,8 @@ dialog select{display:block;width:100%;margin-top:6px;padding:10px;border:1px so
 .bgstat .bad{color:var(--bad);font-weight:600}.bgstat .ok{color:var(--good)}
 .bgstat button{font-size:13px;padding:4px 8px;flex:none}
 .card.hl{outline:3px solid var(--amber);outline-offset:1px}
+#keyst.ok{color:var(--good);font-weight:600}#keyst.bad{color:var(--bad);font-weight:600}
+#keyst{font-weight:400;font-size:14px}
 .facts.bt{flex-wrap:nowrap;align-items:flex-start;gap:6px}.facts.bt .ic{margin-top:2px}.facts.bt span{display:inline}
 .two label{flex:1;min-width:0}
 @media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important}}
@@ -282,10 +284,11 @@ dialog h4{margin:14px 0 6px}
   <form method="dialog">
     <h3>Einstellungen</h3>
     <label>Tankerkönig API-Key
-      <input id="key" autocomplete="off" spellcheck="false" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx">
+      <input id="key" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" inputmode="url" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx">
     </label>
+    <div class="row" style="margin-top:6px;align-items:center"><button type="button" id="keytest">Tankerkönig-Key testen</button><span class="mut" id="keyst"></span></div>
     <label style="margin-top:12px">TomTom API-Key (Verkehrslage, optional)
-      <input id="tt" autocomplete="off" spellcheck="false" placeholder="Key von developer.tomtom.com">
+      <input id="tt" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" inputmode="url" placeholder="Key von developer.tomtom.com">
       <span class="mut" id="qset" style="display:block;font-weight:400;margin-top:4px"></span>
     </label>
     <label style="margin-top:12px">Verkehrsanzeige
@@ -639,7 +642,7 @@ async function load(force){
   }catch(e){
     if(q!==reqN)return;
     S.wait=Date.now()+120000;
-    msg((e instanceof TypeError?'Keine Antwort von Tankerkönig (evtl. Abfrage-Limit)':'Fehler: '+e.message)+'. Pause bis '+hhmm(S.wait)+' Uhr');
+    msg((e instanceof TypeError?'Keine Antwort von Tankerkönig (evtl. Abfrage-Limit)':/apikey/i.test(e.message)?'Tankerkönig lehnt den API-Key ab: unter ⚙ „Tankerkönig-Key testen“':'Fehler: '+e.message)+'. Pause bis '+hhmm(S.wait)+' Uhr');
   }
 }
 
@@ -1351,7 +1354,7 @@ function setFuel(f){
 
 function openSettings(){
   const d=$('#dlg');if(d.open)return;
-  $('#key').value=S.key;
+  $('#key').value=S.key;keyHint();
   $('#tt').value=S.tt;
   $('#qset').textContent=`Diesen Monat über diese App (frei): ${qTxt()}. Echte Zahlen im Dashboard auf developer.tomtom.com.`;
   $('#tstyle').value=S.tstyle;$('#incf').value=S.incf;
@@ -1426,7 +1429,7 @@ $('#loc').onclick=locate;
 $('#cfg').onclick=openSettings;
 $('#dlg').addEventListener('close',e=>{
   if(e.target.returnValue!=='ok')return;
-  S.key=$('#key').value.trim();LS.set('key',S.key);LS.set('start',$('#start').value);
+  S.key=cleanKey($('#key').value);LS.set('key',S.key);LS.set('start',$('#start').value);
   S.lit=num($('#lit').value);S.cons=num($('#cons').value);LS.set('lit',S.lit);LS.set('cons',S.cons);
   S.nav=$('#navapp').value;LS.set('nav',S.nav);
   S.noonbuf=+$('#noonbuf').value;LS.set('noonbuf',S.noonbuf);
@@ -1441,11 +1444,32 @@ $('#dlg').addEventListener('close',e=>{
     if(AREA.on||AREA.wid)setTimeout(()=>Android.refreshNow?.(),500);
   }
   if($('#incf').value!==S.incf){S.incf=$('#incf').value;LS.set('incf',S.incf);incDraw();incLoad()}
-  const tt=$('#tt').value.trim(),ts=$('#tstyle').value;
+  const tt=cleanKey($('#tt').value),ts=$('#tstyle').value;
   if(ts!==S.tstyle){S.tstyle=ts;LS.set('tstyle',ts);if(tt===S.tt)setTraffic(S.traffic)}
   if(tt!==S.tt){S.tt=tt;LS.set('tt',tt);setTraffic(S.traffic||!!tt);setBase(S.base)}
   msg('');redraw();load(true);syncNative();
 });
+/* API-Keys: Leerzeichen, unsichtbare Zeichen und Anführungszeichen entfernen, die beim Einfügen oder durch die
+   Autokorrektur der Tastatur hineingeraten; der Tankerkönig-Key hat immer die Form xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx */
+const cleanKey=v=>String(v||'').replace(/[\s\u00AD\u200B-\u200F\u2060\uFEFF"'„“”‚‘’«»]/g,'');
+const tkFormat=k=>/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(k);
+function keyHint(){
+  const raw=$('#key').value,k=cleanKey(raw);
+  $('#keyst').className='mut';
+  $('#keyst').textContent=!k?'':!tkFormat(k)?`Format stimmt nicht (${k.length} statt 36 Zeichen, nur 0–9, a–f und Bindestriche)`:k!==raw.trim()?'Leer- oder Sonderzeichen werden beim Speichern entfernt':'';
+}
+$('#key').addEventListener('input',keyHint);
+$('#keytest').onclick=async()=>{
+  const k=cleanKey($('#key').value),st=$('#keyst');
+  if(!tkFormat(k)){keyHint();st.className='bad';return}
+  st.className='mut';st.textContent='Prüfe …';
+  try{
+    const c=map.getCenter(),r=await (await fetch(`${API}list.php?lat=${c.lat}&lng=${c.lng}&rad=1&sort=dist&type=all&apikey=${encodeURIComponent(k)}`)).json();
+    st.className=r.ok?'ok':'bad';
+    st.textContent=r.ok?'✓ Tankerkönig nimmt den Key an':`Tankerkönig: ${r.message||'Fehler'}. Key auf creativecommons.tankerkoenig.de prüfen oder neu anfordern.`;
+  }catch{st.className='bad';st.textContent='Keine Verbindung zu Tankerkönig'}
+};
+
 /* Umkreis-Alarm: Mittelpunkt aus Standort oder Kartenmitte, beim Speichern übernommen */
 function aCenter(src){
   const c=src==='me'&&S.me?{lat:S.me[0],lng:S.me[1]}:map.getCenter();
@@ -1756,6 +1780,8 @@ if(Array.isArray(last?.stations)&&last.q){S.stations=last.stations;lastQ=last.q}
 syncOrder();syncFilter();
 setFuel(S.fuel);
 drawViews();
+// Gespeicherte Keys aus älteren Versionen ebenfalls bereinigen (unsichtbare Zeichen, Leerzeichen)
+for(const k of['key','tt']){const v=cleanKey(S[k]);if(v!==S[k]){S[k]=v;LS.set(k,v)}}
 setBase(S.base);setTraffic(S.traffic);syncGmap();
 pullNative();syncNative();
 const hv=location.hash.slice(1);
