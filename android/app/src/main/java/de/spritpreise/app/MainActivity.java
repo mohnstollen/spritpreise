@@ -46,7 +46,7 @@ public class MainActivity extends Activity {
     private static final String HOST = "appassets.androidplatform.net";
     private static final String START = "https://" + HOST + "/index.html";
     private static final String LEAFLET = "/ajax/libs/leaflet/1.9.4/";
-    private static final int REQ_LOCATION = 1, REQ_OPEN = 2, REQ_SAVE = 3, REQ_NOTIFY = 4;
+    private static final int REQ_LOCATION = 1, REQ_OPEN = 2, REQ_SAVE = 3, REQ_NOTIFY = 4, REQ_SCAN = 5;
 
     private WebView web;
     private GeolocationPermissions.Callback geoCallback;
@@ -242,6 +242,13 @@ public class MainActivity extends Activity {
         if (code == REQ_OPEN) {
             if (fileCallback != null) fileCallback.onReceiveValue(WebChromeClient.FileChooserParams.parseResult(result, data));
             fileCallback = null;
+        } else if (code == REQ_SCAN) {
+            Uri u = result == RESULT_OK ? Receipt.picked(this, data) : null;
+            if (u == null) {
+                scanDone(null, "");
+                return;
+            }
+            Receipt.recognize(this, u, this::scanDone);
         } else if (code == REQ_SAVE) {
             String content = pendingSave;
             pendingSave = null;
@@ -253,6 +260,12 @@ public class MainActivity extends Activity {
                 Toast.makeText(this, "Speichern fehlgeschlagen", Toast.LENGTH_SHORT).show();
             }
         }
+    }
+
+    /** Ergebnis des Beleg-Scans an die Web-App (json = erkannte Zeilen, err = Fehlertext, beides leer = abgebrochen). */
+    private void scanDone(String json, String err) {
+        web.evaluateJavascript("window.scanResult&&scanResult(" + (json == null ? "null" : JSONObject.quote(json)) + ","
+                + JSONObject.quote(err == null ? "" : err) + ")", null);
     }
 
     /** Zurück-Taste: erst Dialoge, Popups und Ansichten der App schließen, dann die App verlassen. */
@@ -338,6 +351,18 @@ public class MainActivity extends Activity {
             } catch (org.json.JSONException | RuntimeException e) {
                 // Shortcuts sind Zusatz (z. B. Limit des Launchers erreicht)
             }
+        }
+
+        /** Beleg-Scan: Kamera oder Galerie, danach Texterkennung; Ergebnis kommt über scanResult in die Web-App. */
+        @JavascriptInterface
+        public void scanReceipt() {
+            runOnUiThread(() -> {
+                try {
+                    startActivityForResult(Receipt.chooser(MainActivity.this), REQ_SCAN);
+                } catch (ActivityNotFoundException | IllegalArgumentException e) {
+                    scanDone(null, "Keine Kamera- oder Galerie-App gefunden");
+                }
+            });
         }
 
         @JavascriptInterface

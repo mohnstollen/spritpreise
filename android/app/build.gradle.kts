@@ -64,3 +64,13 @@ val copyWeb = tasks.register<Copy>("copyWeb") {
     into(layout.buildDirectory.dir("generated/web"))
 }
 tasks.named("preBuild") { dependsOn(copyWeb) }
+
+dependencies {
+    // Beleg-Scan: Texterkennung auf dem Gerät, das Modell kommt über die Google-Play-Dienste (kleine APK)
+    implementation("com.google.android.gms:play-services-mlkit-text-recognition:19.0.1")
+    // FileProvider für das Kamerafoto
+    implementation("androidx.core:core:1.13.1")
+    // ML Kit bringt ältere kotlin-stdlib-jdk7/-jdk8 mit, androidx.core die neuere kotlin-stdlib:
+    // die Stückliste hebt alle Kotlin-Teile auf dieselbe Version, sonst doppelte Klassen
+    implementation(platform("org.jetbrains.kotlin:kotlin-bom:1.8.22"))
+}
