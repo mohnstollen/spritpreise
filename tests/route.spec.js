@@ -25,7 +25,11 @@ async function start(page,o={}){
   const n={near:0,route:[],inc:0};
   const errs=await setup(page,{time:'2026-10-28T09:30:00+01:00',ls:{tt:'TT',fuel:'e10',pois:o.pois||{},...o.ls},routes:[
     ['**/json/list.php*',r=>json(r,{ok:true,stations:ST})],
-    ['**/api.tomtom.com/routing/**',r=>{n.route.push(r.request().url());return json(r,{routes:[{summary:{lengthInMeters:115000,travelTimeInSeconds:4300,trafficDelayInSeconds:900},sections,legs:[{points:routePoints()}]}]})}],
+    ['**/api.tomtom.com/routing/**',r=>{
+      // Batch für den echten Umweg: je Tankstelle 2 km davor → Tankstelle → 2 km danach
+      if(r.request().url().includes('/batch/')){n.batch=JSON.parse(r.request().postData()).batchItems;
+        return o.batchFail?json(r,{},403):json(r,{batchItems:n.batch.map(()=>({statusCode:200,response:{routes:[{summary:{lengthInMeters:5600,travelTimeInSeconds:330}}]}}))})}
+      n.route.push(r.request().url());return json(r,{routes:[{summary:{lengthInMeters:115000,travelTimeInSeconds:4300,trafficDelayInSeconds:900},sections,legs:[{points:routePoints()}]}]})}],
     ['**/api.tomtom.com/search/2/nearbySearch/**',nearby(n)],
     ['**/api.tomtom.com/search/2/search/**',r=>json(r,{results:[{type:'Geography',address:{freeformAddress:'83562 Rechtmehring',countrySubdivision:'Bayern'},position:{lat:49.05,lon:12.05}}]})],
     ['**/incidentDetails**',r=>{n.inc++;return json(r,{incidents:[
@@ -118,4 +122,23 @@ test('Route: Verkehr zur Abfahrtszeit',async({page})=>{
   // Abfahrt danach geändert: Hinweis zum Neuberechnen
   await page.fill('#rdep','15:30');await settle(page);
   await expect(page.locator('#rsum')).toContainText('Abfahrt geändert: Route neu berechnen');
+});
+
+test('Route: echter Umweg über TomTom statt Schätzung',async({page})=>{
+  const {n,errs}=await start(page,{corr:5});
+  await until(page,()=>route.det&&route.det.size>=10);
+  // eine Batch-Anfrage mit je drei Punkten (vor, Tankstelle, nach)
+  expect(n.batch).toHaveLength(10);
+  expect(n.batch[0].query).toMatch(/^\/calculateRoute\/[\d.]+,[\d.]+:[\d.]+,[\d.]+:[\d.]+,[\d.]+\/json\?travelMode=car&traffic=true/);
+  const det=await page.locator('#ritems .card .facts.mut span').nth(1).innerText();
+  expect(det).toMatch(/^\+1,\d km · \+3 min$/);
+  // im Kontingent je Tankstelle eine Routenanfrage
+  expect(await page.evaluate(()=>Q.n.route)).toBe(11);
+  expect(errs).toEqual([]);
+});
+
+test('Route: ohne Antwort bleibt der geschätzte Umweg (≈)',async({page})=>{
+  await start(page,{corr:5,batchFail:true});
+  await until(page,()=>!!route.detErr);
+  await expect(page.locator('#ritems .card .facts.mut span').nth(1)).toContainText('≈ +');
 });

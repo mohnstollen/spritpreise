@@ -131,6 +131,10 @@ dialog select{display:block;width:100%;margin-top:6px;padding:10px;border:1px so
 .bgstat .bad{color:var(--bad);font-weight:600}.bgstat .ok{color:var(--good)}
 .bgstat button{font-size:13px;padding:4px 8px;flex:none}
 .card.hl{outline:3px solid var(--amber);outline-offset:1px}
+.facts.tip{flex-wrap:nowrap;align-items:flex-start;gap:6px;margin:8px 0 2px;padding:8px 10px;border-radius:8px;background:color-mix(in srgb,var(--amber) 14%,transparent)}
+.facts.tip span{display:inline}.facts.tip .ic{margin-top:2px;flex:none}
+.pin.out{opacity:.35;filter:grayscale(1)}
+#rng[aria-pressed=true]{background:var(--amber);color:#14181c;border-color:var(--amber)}
 #keyst.ok{color:var(--good);font-weight:600}#keyst.bad{color:var(--bad);font-weight:600}
 #keyst{font-weight:400;font-size:14px}
 #lgScan{border:1px solid var(--line);background:none;color:var(--fg);border-radius:8px;padding:6px 10px;font-weight:600;font-size:14px}
@@ -169,6 +173,13 @@ dialog select{display:block;width:100%;margin-top:6px;padding:10px;border:1px so
 .spk svg{display:block;width:100%;height:36px;overflow:visible;touch-action:pan-y}
 .spk path{fill:none;stroke:var(--fg);stroke-width:2;stroke-linejoin:round}
 .spk span{display:block;font-variant-numeric:tabular-nums}
+.spk .lnk{margin-top:2px;padding:2px 0;background:none;border:0;color:var(--fg);font-weight:600;font-size:14px;text-decoration:underline}
+#statd .stc{width:100%;height:90px;display:block;margin:4px 0 2px}
+#statd .stc path{fill:none;stroke:var(--fg);stroke-width:2}#statd .stc line{stroke:var(--amber);stroke-dasharray:4 3;stroke-width:1.5}
+#statd .kv{display:grid;grid-template-columns:auto 1fr;gap:3px 12px;font-size:14px;margin:8px 0;font-variant-numeric:tabular-nums}
+#statd .bars{display:grid;grid-template-columns:auto 1fr auto;gap:3px 8px;align-items:center;font-size:13px;font-variant-numeric:tabular-nums}
+#statd .bar{height:10px;border-radius:3px;background:var(--line)}#statd .bar i{display:block;height:100%;border-radius:3px;background:var(--good)}
+#statd .bar.hi i{background:var(--bad)}#statd h4{margin:12px 0 4px}
 #qbar{position:absolute;z-index:1350;top:8px;left:12px;right:12px;display:flex;gap:10px;align-items:flex-start;background:var(--ink);color:#fff;border:2px solid var(--amber);padding:8px 8px 8px 12px;border-radius:12px;font-size:14px;box-shadow:0 2px 10px #0008}
 #qbar span{flex:1}
 #qbar button{background:none;border:0;color:#fff;font-size:18px;line-height:1;padding:2px 4px}
@@ -213,6 +224,7 @@ dialog h4{margin:14px 0 6px}
   <symbol id="i-burger" viewBox="0 0 24 24"><path d="M4 10a8 6 0 0 1 16 0zM3 14h18M5 17h14a2 2 0 0 1-2 3H7a2 2 0 0 1-2-3z"/></symbol>
   <symbol id="i-cart" viewBox="0 0 24 24"><path d="M3 4h2l2.5 11h10L20 8H6.4"/><circle cx="9" cy="19" r="1.5"/><circle cx="17" cy="19" r="1.5"/></symbol>
   <symbol id="i-bread" viewBox="0 0 24 24"><path d="M5 11a7 4 0 0 1 14 0v7a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1zM9 9l1 3M12 8.5V12M15 9l-1 3"/></symbol>
+  <symbol id="i-pump" viewBox="0 0 24 24"><path d="M4 21V5a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v16M3 21h12M4 11h10M14 8h2a2 2 0 0 1 2 2v7a1.5 1.5 0 0 0 3 0V9l-3-3"/></symbol>
   <symbol id="i-euro" viewBox="0 0 24 24"><path d="M17.5 6.5a6.5 6.5 0 1 0 0 11M4 10h9M4 14h9"/></symbol>
   <symbol id="i-warn" viewBox="0 0 24 24"><path d="M12 3 2 20h20L12 3zM12 10v4M12 17v.5"/></symbol>
   <symbol id="i-crash" viewBox="0 0 24 24"><path d="M12 2v5M4.5 5.5 8 9M19.5 5.5 16 9M3 13h4M17 13h4M6 21l2-6h8l2 6M5 21h14"/></symbol>
@@ -238,7 +250,7 @@ dialog h4{margin:14px 0 6px}
   <div id="res" hidden></div>
   <div id="views"></div>
   <section id="map">
-    <div class="fab"><a id="gmap" href="https://www.google.com/maps/data=!5m1!1e1" target="_blank" rel="noopener" aria-label="Verkehrslage in Google Maps öffnen">Google Maps ↗</a><button id="sat" aria-pressed="false">Luftbild</button><button id="trf" aria-pressed="false">Verkehr</button></div>
+    <div class="fab"><a id="gmap" href="https://www.google.com/maps/data=!5m1!1e1" target="_blank" rel="noopener" aria-label="Verkehrslage in Google Maps öffnen">Google Maps ↗</a><button id="rng" aria-pressed="false">Reichweite</button><button id="sat" aria-pressed="false">Luftbild</button><button id="trf" aria-pressed="false">Verkehr</button></div>
     <button id="loc" aria-label="Mein Standort">◎</button>
   </section>
   <section id="list" hidden>
@@ -323,6 +335,8 @@ dialog h4{margin:14px 0 6px}
       <label>Verbrauch (l/100 km)<input id="cons" inputmode="decimal" autocomplete="off" placeholder="7"></label>
     </div>
     <p class="mut">Für den Umwegrechner in der Liste. Leer lassen schaltet ihn ab.</p>
+    <label style="margin-top:8px">Tankgröße (l)<input id="tank" inputmode="decimal" autocomplete="off" placeholder="z. B. 50"></label>
+    <p class="mut">Für den Tank-Tipp in der Route: lohnt früh tanken oder erst mit fast leerem Tank?</p>
     <label style="margin-top:12px">Puffer für die 12-Uhr-Regel
       <select id="noonbuf">
         <option value="0">kein Puffer</option>
@@ -371,7 +385,7 @@ dialog h4{margin:14px 0 6px}
     </div>
     <div class="row" id="appver" hidden><span class="mut">App-Version <b id="appverv"></b></span><button type="button" id="updchk">Nach Updates suchen</button></div>
     <input type="file" id="imp" accept="application/json,.json" hidden>
-    <p class="mut">Sichert Favoriten, Gruppen, Kartenausschnitte, Preisverlauf und Einstellungen als Datei. API-Keys werden nicht exportiert.</p>
+    <p class="mut">Sichert Favoriten, Gruppen, Kartenausschnitte, Preisverlauf, Tank-Logbuch, gemerkte Routen und Einstellungen als Datei. API-Keys werden nicht exportiert.</p>
     <p class="mut">Den kostenlosen Key gibt es auf creativecommons.tankerkoenig.de. Er wird nur lokal in diesem Browser gespeichert. Preisdaten: Tankerkönig.de (CC BY 4.0).</p>
     <menu class="rv"><button id="save" value="ok">Speichern</button><button value="cancel">Abbrechen</button></menu>
   </form>
@@ -401,6 +415,13 @@ dialog h4{margin:14px 0 6px}
     <label class="chk" style="margin-top:10px"><input type="checkbox" id="lgFull" checked> vollgetankt (für den Verbrauch)</label>
     <p class="mut" id="lgInfo" style="margin:8px 0 0">Zwei von Liter, Preis und Betrag reichen, der dritte Wert wird berechnet.</p>
     <menu class="rv"><button value="ok" class="pri">Speichern</button><button value="cancel" formnovalidate>Abbrechen</button><button value="del" class="del" id="lgDel" formnovalidate>Löschen</button></menu>
+  </form>
+</dialog>
+<dialog id="statd">
+  <form method="dialog">
+    <h3 id="stT"></h3>
+    <div id="stB"></div>
+    <menu><button value="ok">Schließen</button></menu>
   </form>
 </dialog>
 <dialog id="ask">
@@ -434,6 +455,7 @@ const hhmm=ms=>new Date(ms).toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2
 const when=ms=>{const d=new Date(ms);return (d.toDateString()===new Date().toDateString()?'':d.toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit'})+' ')+hhmm(ms)+' Uhr'};
 const msg=t=>{$('#msg').textContent=t||''};
 const num=v=>{const x=parseFloat(String(v).replace(',','.'));return x>0?x:0};
+S.tank=LS.get('tank',0);
 // Umkreis-Alarm (nur App): {on,fuel,below,rad,lat,lng,src,t}
 let AREA=LS.get('area',{}),aDraft=null;
 const eur=x=>Math.abs(x).toFixed(2).replace('.',',')+' €';
@@ -483,9 +505,9 @@ function qShow(t){$('#qtxt').textContent=t;$('#qbar').hidden=false}
 $('#qx').onclick=()=>{$('#qbar').hidden=true};
 const qLimit=()=>qShow('TomTom meldet zu viele Anfragen (HTTP 429): entweder kurz zu viele auf einmal oder das Monatskontingent ist aufgebraucht. Stand im Dashboard auf developer.tomtom.com prüfen.');
 // Alle TomTom-Anfragen außer Kacheln laufen hierüber: je API zählen und HTTP 429 erkennen
-async function ttFetch(url){
+async function ttFetch(url,opt){
   qCount(qKind(url));
-  const r=await fetch(url);
+  const r=await fetch(url,opt);
   if(r.status===429)qLimit();
   return r;
 }
@@ -666,6 +688,35 @@ function card(s,pr,d,extra='',nav=null){
 }
 
 /* Preis-Pins; überlappende teurere Pins werden zu Punkten */
+/* Reichweite auf der Karte: erreichbare Fläche für die Restreichweite vom Standort (TomTom, entlang der Straßen;
+   ohne TomTom-Key ein Kreis mit Reichweite ÷ 1,3 als Luftlinie). Tankstellen außerhalb werden ausgegraut. */
+let rngPoly=null,rngLayer=null;
+function inPoly(p,poly){let i=0,j=poly.length-1,c=false;for(;i<poly.length;j=i++){const[a,b]=poly[i],[x,y]=poly[j];if((b>p[1])!==(y>p[1])&&p[0]<(x-a)*(p[1]-b)/(y-b)+a)c=!c}return c}
+function rngClear(){rngLayer?.remove();rngLayer=null;rngPoly=null;$('#rng').setAttribute('aria-pressed','false');$('#rng').textContent='Reichweite';pins()}
+async function rngShow(kmv){
+  const o=S.me||[map.getCenter().lat,map.getCenter().lng];let poly,how='entlang der Straßen';
+  if(S.tt){
+    try{
+      const r=await ttFetch(`https://api.tomtom.com/routing/1/calculateReachableRange/${o[0].toFixed(5)},${o[1].toFixed(5)}/json?key=${encodeURIComponent(S.tt)}&distanceBudgetInMeters=${Math.round(kmv*1000)}&travelMode=car&routeType=fastest`);
+      if(!r.ok)throw new Error('HTTP '+r.status);
+      poly=((await r.json()).reachableRange?.boundary||[]).map(p=>[p.latitude,p.longitude]);
+      if(poly.length<3)throw new Error('keine Fläche');
+    }catch(e){poly=null;how=`geschätzt (TomTom: ${e instanceof TypeError?'keine Verbindung':e.message})`}
+  }
+  if(!poly){const R=kmv/1.3;poly=Array.from({length:48},(_,i)=>{const a=i/48*2*Math.PI;return[o[0]+R/110.57*Math.cos(a),o[1]+R/(111.32*Math.cos(o[0]*Math.PI/180))*Math.sin(a)]});if(!S.tt)how='geschätzt als Luftlinie'}
+  rngLayer?.remove();rngPoly=poly;
+  rngLayer=L.polygon(poly,{color:'#ffb000',weight:3,fillColor:'#ffb000',fillOpacity:.08,interactive:false}).addTo(map);
+  map.fitBounds(rngLayer.getBounds(),{padding:[20,20]});
+  $('#rng').setAttribute('aria-pressed','true');$('#rng').textContent=`Reichweite ${Math.round(kmv)} km`;
+  msg(`Erreichbar mit ${Math.round(kmv)} km Reichweite, ${how}`);setTimeout(()=>msg(''),5000);
+  pins();
+}
+$('#rng').onclick=async()=>{
+  if(rngPoly)return rngClear();
+  const v=await ask({title:'Reichweite',text:'Wie viele Kilometer schaffst du laut Bordcomputer noch? Die Karte zeigt, wo du damit hinkommst.',input:LS.get('rangeKm','')?String(LS.get('rangeKm','')):'',ok:'Anzeigen'});
+  const kmv=num(v);if(!kmv)return;
+  LS.set('rangeKm',kmv);rngShow(kmv);
+};
 function pins(){
   layer.clearLayers();marks=[];
   const vs=S.stations.filter(vis);
@@ -673,7 +724,7 @@ function pins(){
   const lo=v[Math.floor(v.length/3)],hi=v[Math.floor(v.length*2/3)];
   const stand=lastQ?`<div class="mut" style="margin-top:6px">Stand ${when(lastQ.t)}</div>`:'';
   vs.forEach(s=>{
-    const p=prOf(s),x=p[S.fuel],c=x==null?'':x<=lo?'g':x>=hi?'r':'';
+    const p=prOf(s),x=p[S.fuel],c=(x==null?'':x<=lo?'g':x>=hi?'r':'')+(rngPoly&&!inPoly([s.lat,s.lng],rngPoly)?' out':'');
     const m=L.marker([s.lat,s.lng],{icon:L.divIcon({className:'',iconSize:[0,0],html:`<div class="pin ${c}">${fmt(x)}</div>`})})
       .bindPopup(card(s,p,null,stand+(S.tt?'<div class="pext"></div>':'')),{minWidth:250,autoPanPaddingTopLeft:[10,64]}).on('popupopen',e=>popupExtra(s,e.popup)).addTo(layer);
     m.getElement()?.setAttribute('aria-label',`${s.brand||s.name}, ${x==null?'kein Preis':x.toFixed(3).replace('.',',')+' Euro'}`);
@@ -806,7 +857,7 @@ function spark(id){
   sparkPts[id]=pts;
   const span=a===t0?'Letzte 7 Tage':'Seit '+new Date(a).toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit'});
   const lbl=`${span} (${FN[S.fuel]}): ${fmt(lo)} bis ${fmt(hi)} €`;
-  return `<div class="spk"><svg viewBox="0 0 300 36" preserveAspectRatio="none" role="img" aria-label="Preisverlauf ${esc(span)}: ${lo.toFixed(3).replace('.',',')} bis ${hi.toFixed(3).replace('.',',')} Euro" data-spk="${esc(id)}"><path d="${d}" vector-effect="non-scaling-stroke"/></svg><span class="mut" data-lbl="${esc(lbl)}">${lbl}</span></div>`;
+  return `<div class="spk"><svg viewBox="0 0 300 36" preserveAspectRatio="none" role="img" aria-label="Preisverlauf ${esc(span)}: ${lo.toFixed(3).replace('.',',')} bis ${hi.toFixed(3).replace('.',',')} Euro" data-spk="${esc(id)}"><path d="${d}" vector-effect="non-scaling-stroke"/></svg><span class="mut" data-lbl="${esc(lbl)}">${lbl}</span><button type="button" class="lnk" data-stat="${esc(id)}">30-Tage-Statistik ›</button></div>`;
 }
 
 /* Beste Tankzeit aus dem gespeicherten Preisverlauf (bis 30 Tage): je vollständigem Tag mit Daten der Abstand
@@ -828,6 +879,51 @@ function bestTime(id){
   const ct=Math.round(-bv*100);
   return ct<2?'':`<div class="facts mut bt" aria-label="Meist am günstigsten von ${best} bis ${best+2} Uhr, etwa ${ct} Cent unter dem Tageshoch, aus ${n} Tagen">${ic('clock')}<span>Meist am günstigsten <b>${best}–${best+2} Uhr</b>, ca. ${ct} ct unter dem Tageshoch (aus ${n} Tagen)</span></div>`;
 }
+
+/* Preisstatistik je Favorit (bis 30 Tage aus dem gespeicherten Verlauf): Verlauf mit Durchschnitt,
+   Tief/Hoch, aktueller Preis im Vergleich, Wochentage und Tagesverlauf (6–22 Uhr, je Tag zum Tageshoch). */
+function histPts(id,days=30){
+  const k={e5:1,e10:2,diesel:3}[S.fuel],t0=Date.now()-days*864e5,pts=[];let prev=null;
+  for(const e of S.hist[id]||[]){if(e[k]==null)continue;if(e[0]<=t0)prev=e[k];else pts.push([e[0],e[k]])}
+  if(prev!=null)pts.unshift([t0,prev]);
+  return pts;
+}
+const ptAt=(pts,t)=>{let v=null;for(const p of pts){if(p[0]>t)break;v=p[1]}return v};
+function priceStats(id){
+  const pts=histPts(id),now=Date.now();
+  if(pts.length<2||now-pts[0][0]<864e5)return null;
+  let sum=0,dur=0,lo=pts[0],hi=pts[0];
+  pts.forEach((p,i)=>{const b=i+1<pts.length?pts[i+1][0]:now;sum+=p[1]*(b-p[0]);dur+=b-p[0];if(p[1]<lo[1])lo=p;if(p[1]>hi[1])hi=p});
+  // Wochentage und Stunden stündlich abtasten (6–22 Uhr)
+  const wd=Array.from({length:7},()=>[0,0]),hr=Array.from({length:24},()=>[0,0]),day0=new Date(pts[0][0]);day0.setHours(0,0,0,0);
+  for(let d=day0.getTime();d<now;d+=864e5){
+    const v=[];for(let H=6;H<=22;H++){const t=d+H*36e5+18e5;if(t<pts[0][0]||t>now)continue;v[H]=ptAt(pts,t)}
+    const ok=v.filter(x=>x!=null);if(!ok.length)continue;const mx=Math.max(...ok),w=new Date(d).getDay();
+    for(let H=6;H<=22;H++)if(v[H]!=null){wd[w][0]+=v[H];wd[w][1]++;hr[H][0]+=v[H]-mx;hr[H][1]++}
+  }
+  return{pts,avg:sum/dur,lo,hi,cur:pts[pts.length-1][1],since:pts[0][0],days:Math.round((now-pts[0][0])/864e5),
+    wd:wd.map(([s,n])=>n?s/n:null),hr:hr.map(([s,n])=>n?s/n:null)};
+}
+function openStats(id){
+  const s=S.favs[id],st=priceStats(id),ct=v=>{const c=Math.round(v*100);return `${c>0?'+':c<0?'−':'±'}${Math.abs(c)} ct`};
+  $('#stT').textContent=`${sName(s)} · ${FN[S.fuel]}`;
+  if(!st){$('#stB').innerHTML='<p class="mut">Noch zu wenig Preisdaten. Die App sammelt sie, solange die Tankstelle Favorit ist (im Hintergrund, wenn sie im Widget steht oder einen Preisalarm hat).</p>';return $('#statd').showModal()}
+  const p=st.pts,a=p[0][0],z=Date.now(),vs=p.map(x=>x[1]),lo=Math.min(...vs),hi=Math.max(...vs),rg=hi-lo||.01;
+  const X=t=>((t-a)/(z-a)*300).toFixed(1),Y=v=>(4+(hi-v)/rg*72).toFixed(1);
+  let d=`M${X(p[0][0])} ${Y(p[0][1])}`;for(const[t,v]of p.slice(1))d+=`H${X(t)}V${Y(v)}`;d+=`H300`;
+  const dt=t=>new Date(t).toLocaleDateString('de-DE',{weekday:'short',day:'2-digit',month:'2-digit'});
+  const W=['So','Mo','Di','Mi','Do','Fr','Sa'],wv=st.wd.map((v,i)=>[i,v]).filter(x=>x[1]!=null),wmin=Math.min(...wv.map(x=>x[1])),wmax=Math.max(...wv.map(x=>x[1]));
+  const bar=(v,min,max,cls='')=>`<div class="bar ${cls}"><i style="width:${max>min?Math.round(15+85*(v-min)/(max-min)):50}%"></i></div>`;
+  const hv=st.hr.map((v,H)=>[H,v]).filter(x=>x[1]!=null&&x[0]>=6&&x[0]<=22),hmin=Math.min(...hv.map(x=>x[1])),hmax=Math.max(...hv.map(x=>x[1]));
+  $('#stB').innerHTML=`<p class="mut" style="margin:0">Seit ${new Date(st.since).toLocaleDateString('de-DE')} (${st.days} ${st.days===1?'Tag':'Tage'})</p>
+    <svg class="stc" viewBox="0 0 300 80" preserveAspectRatio="none" role="img" aria-label="Preisverlauf mit Durchschnitt"><line x1="0" x2="300" y1="${Y(st.avg)}" y2="${Y(st.avg)}"/><path d="${d}" vector-effect="non-scaling-stroke"/></svg>
+    <div class="kv"><span>Durchschnitt</span><b>${fmt(st.avg)} €</b><span>Tiefstpreis</span><span><b>${fmt(st.lo[1])} €</b> · ${dt(st.lo[0])}</span><span>Höchstpreis</span><span><b>${fmt(st.hi[1])} €</b> · ${dt(st.hi[0])}</span>
+      <span>Aktuell</span><span><b>${fmt(st.cur)} €</b> · <span class="${st.cur<st.avg-0.005?'d-g':st.cur>st.avg+0.005?'d-r':''}">${ct(st.cur-st.avg)} zum Durchschnitt</span></span></div>
+    ${wv.length>=3?`<h4>Wochentage (Ø 6–22 Uhr)</h4><div class="bars">${[1,2,3,4,5,6,0].filter(i=>st.wd[i]!=null).map(i=>`<span>${W[i]}</span>${bar(st.wd[i],wmin,wmax,st.wd[i]===wmax?'hi':'')}<span>${ct(st.wd[i]-st.avg)}</span>`).join('')}</div>`:''}
+    ${hv.length?`<h4>Tagesverlauf (zum Tageshoch)</h4><div class="bars">${hv.filter(x=>x[0]%2===0).map(([H,v])=>`<span>${String(H).padStart(2,'0')} Uhr</span>${bar(v,hmin,hmax,v===hmax?'hi':'')}<span>${ct(v)}</span>`).join('')}</div>`:''}`;
+  $('#statd').showModal();
+}
+$('#favs').addEventListener('click',e=>{const b=e.target.closest('[data-stat]');if(b)openStats(b.dataset.stat)});
 
 let favHl=null;
 function drawFavs(){
@@ -1013,6 +1109,33 @@ async function calcRoute(){
   }catch(e){st(e instanceof TypeError?'Keine Verbindung. Bitte später erneut versuchen.':e.message)}
   finally{$('#rgo').disabled=false}
 }
+/* Echter Umweg: Für die angezeigten Tankstellen eine TomTom-Batch-Anfrage mit je einer Route
+   2 km vor der Tankstelle → Tankstelle → 2 km danach (mit Verkehr); abzüglich derselben Strecke auf der Route.
+   Bis 30 Tankstellen je Route; ohne Antwort bleibt die Schätzung aus der Luftlinie (Anzeige mit ≈). */
+async function loadDetours(list){
+  const rt=route;if(!rt||!S.tt||rt.detErr||rt.detBusy)return;
+  rt.det=rt.det||new Map();
+  const todo=list.filter(o=>!rt.det.has(o.s.id)).slice(0,Math.max(0,30-rt.det.size));
+  if(!todo.length)return;
+  const max=rt.cum[rt.cum.length-1],leg=o=>{const a=Math.max(0,o.at/rt.scale-2),b=Math.min(max,o.at/rt.scale+2);return{a,b,P:pointAt(rt,a),Q:pointAt(rt,b)}};
+  const legs=todo.map(leg),ll=p=>`${(+p[0]).toFixed(5)},${(+p[1]).toFixed(5)}`;
+  rt.detBusy=true;
+  try{
+    const r=await ttFetch(`https://api.tomtom.com/routing/1/batch/sync/json?key=${encodeURIComponent(S.tt)}`,{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({batchItems:todo.map((o,i)=>({query:`/calculateRoute/${ll(legs[i].P)}:${ll([o.s.lat,o.s.lng])}:${ll(legs[i].Q)}/json?travelMode=car&traffic=true&routeRepresentation=summaryOnly`}))})});
+    if(todo.length>1)qCount('route',todo.length-1);
+    if(!r.ok)throw new Error('HTTP '+r.status);
+    const j=await r.json();
+    todo.forEach(o=>rt.det.set(o.s.id,null)); // ohne Antwort: Schätzung behalten, nicht erneut fragen
+    (j.batchItems||[]).forEach((it,i)=>{
+      const s=it.statusCode===200&&it.response?.routes?.[0]?.summary,o=todo[i],g=legs[i];if(!s||!o)return;
+      const baseKm=(g.b-g.a)*rt.scale,baseS=timeAt(g.b*rt.scale)-timeAt(g.a*rt.scale);
+      rt.det.set(o.s.id,{km:Math.max(0,s.lengthInMeters/1000-baseKm),min:Math.max(0,Math.round((s.travelTimeInSeconds-baseS)/60))});
+    });
+  }catch(e){rt.detErr=e instanceof TypeError?'keine Verbindung':e.message}
+  rt.detBusy=false;
+  if(route===rt)renderRoute();
+}
 /* Meldungen der Route mit Straße und Anschlussstellen benennen („A3 · Kreuz Nürnberg-Ost → Lauf/Hersbruck“):
    Die Routenberechnung liefert nur Lage und Art. Darum die Incident Details rund um die Meldungen abfragen
    (aufeinanderfolgende Meldungen in gemeinsamen Ausschnitten bis 9.000 km², meist 1–3 Anfragen) und über die
@@ -1056,11 +1179,29 @@ function departure(t=route.t){
 function nextNoon(t){const d=new Date(t);d.setHours(12,0,0,0);if(d.getTime()<=t)d.setDate(d.getDate()+1);return d.getTime()}
 // Sortierung nach Kosten inkl. Umweg (mit Umwegrechner) oder Preis; berücksichtigt Sorte, Filter, Restreichweite und 12-Uhr-Regel.
 // Umweg in Minuten grob mit 40 km/h; erreichbar ist, was bis Tankstelle (Strecke + Abstand) in der Reichweite liegt.
+/* Tank-Tipp: früh tanken oder fast leer fahren? Alle Möglichkeiten werden auf „voll getankt bei km D“
+   (Ende der Reichweite bzw. Ziel) gebracht: An einer Tankstelle bei km d passen x = Tank − Rest + Verbrauch bis d
+   Liter hinein; was bis D wieder verbraucht ist, wird später zum Median der Strecke nachgetankt.
+   Verglichen werden die beste frühe (erstes Drittel) und die beste späte Tankstelle (letztes Drittel). */
+function tankTip(ranked){
+  const rng=ranked.rng,c=S.cons;
+  if(!rng)return '';
+  if(!(S.tank>0&&c>0))return '<div class="mut">Tipp: Mit Tankgröße und Verbrauch unter ⚙ sagt die App, ob früh tanken oder Leerfahren günstiger ist.</div>';
+  const D=Math.min(rng,route.km),rest=rng*c/100,ref=median(ranked.map(o=>o.p));
+  const E=o=>{const x=Math.max(0,Math.min(S.tank,S.tank-rest+(o.at+o.det/2)*c/100));return{o,x,e:x*o.p+(D-o.at)*c/100*ref+o.det/2*c/100*o.p}};
+  const best=a=>a.map(E).sort((p,q)=>p.e-q.e)[0];
+  const early=best(ranked.filter(o=>o.at<=D/3)),late=best(ranked.filter(o=>o.at>=D*2/3&&o.at<=D));
+  if(!early||!late)return '';
+  const d=late.e-early.e,w=v=>`km ${Math.round(v.o.at)} (${esc(v.o.s.brand||v.o.s.name)}, ${fmt(v.o.p)} €, ca. ${Math.round(v.x)} l)`;
+  return `<div class="facts tip">${ic('pump')}<span>${Math.abs(d)<0.3?`Tank-Tipp: Früh bei ${w(early)} oder spät bei ${w(late)} kostet fast gleich viel (unter 30 ct Unterschied).`
+    :d>0?`Tank-Tipp: <b>Früh tanken</b> bei ${w(early)} ist ca. <b>${nf(d)} €</b> günstiger als fast leer bei ${w(late)}.`
+    :`Tank-Tipp: <b>Weiterfahren</b> lohnt: bei ${w(late)} ca. <b>${nf(-d)} €</b> günstiger als früh bei ${w(early)}.`}</span></div>`;
+}
 function rankRoute(){
   const calc=calcOn(),rng=num($('#rr').value),dep=departure(),noon=nextNoon(route.t),only=$('#rnoon').checked;let out=0,late=0,hid=0;
   const r=route.cands.filter(o=>n(o.s[S.fuel])!=null).filter(o=>vis(o.s)||!++hid).map(o=>{
-    const p=n(o.s[S.fuel]),det=2*1.3*o.off,at=o.at*route.scale,sec=timeAt(at),dmin=Math.round(det*1.5),arr=dep+sec*1000;
-    return{...o,at,p,det,sec,dmin,arr,delay:route.delayKnown?delayAt(at):null,risk:arr+(dmin/2+S.noonbuf)*60000>=noon,c:calc?p*(S.lit+det*S.cons/100):p};
+    const rd=route.det?.get(o.s.id),p=n(o.s[S.fuel]),det=rd?rd.km:2*1.3*o.off,at=o.at*route.scale,sec=timeAt(at),dmin=rd?rd.min:Math.round(det*1.5),arr=dep+sec*1000;
+    return{...o,at,p,det,sec,dmin,real:!!rd,arr,delay:route.delayKnown?delayAt(at):null,risk:arr+(dmin/2+S.noonbuf)*60000>=noon,c:calc?p*(S.lit+det*S.cons/100):p};
   }).filter(o=>!rng||o.at+1.3*o.off<=rng||!++out).filter(o=>!only||!o.risk||!++late).sort((x,y)=>x.c-y.c||x.at-y.at);
   Object.assign(r,{out,late,hid,rng,dep,only});
   return r;
@@ -1225,20 +1366,22 @@ function renderRoute(){
   const incRow=x=>`<div class="irow"><span class="inc" style="background:${INC[x.k][2]}">${ic(INC[x.k][1])}</span>${esc(incLine(x))}</div>`;
   const incInfo=incs.length?`<div class="incs"><b>${incs.length} ${incs.length===1?'Meldung':'Meldungen'} auf der Strecke</b>${incs.slice(0,4).map(incRow).join('')}${incs.length>4?`<details><summary>${incs.length-4} weitere</summary>${incs.slice(4).map(incRow).join('')}</details>`:''}</div>`:'';
   const rngInfo=ranked.rng?`<div class="sv ${ranked.rng<route.km?'r':'mut'}">${ranked.rng<route.km?`Deine Reichweite endet bei km ${Math.round(ranked.rng)}, das Ziel liegt dahinter: unterwegs tanken.`:'Das Ziel liegt innerhalb deiner Reichweite.'}${ranked.out?` ${ranked.out} ${ranked.out===1?'Tankstelle':'Tankstellen'} dahinter ausgeblendet.`:''}</div>`:'';
+  const tip=tankTip(ranked);
   const risky=ranked.filter(o=>o.risk).length;
   const noonInfo=ranked.dep>=nextNoon(route.t)?`<div class="facts warn">${ic('warn')}Du fährst nach 12 Uhr los. Die Preise sind von davor: Route nach 12 Uhr neu berechnen, dann stimmen sie.</div>`
     :ranked.late?`<div class="facts warn">${ic('warn')}${ranked.late} ${ranked.late===1?'Tankstelle':'Tankstellen'} nach 12 Uhr ausgeblendet (inkl. ${S.noonbuf} min Puffer).</div>`
     :risky?`<div class="facts warn">${ic('warn')}Bei ${risky} ${risky===1?'Tankstelle':'Tankstellen'} kommst du nach 12 Uhr an (inkl. ${S.noonbuf} min Puffer). Dort kann der Preis bis dahin gestiegen sein.</div>`:'';
-  $('#rsum').innerHTML=`<div class="sum">${km(route.km)} · ${dur(route.sec)}${route.delay>=60?`<span class="dl ${dCls(route.delay)}"> (+${Math.round(route.delay/60)} min Stau)</span>`:''} · ${ranked.length} ${ranked.length===1?'Tankstelle':'Tankstellen'} mit ${FN[S.fuel]} bis ${route.corr} km neben der Strecke${top[0]?` · günstigste <b>${fmt(top[0].p)} €</b>`:''}<div class="mut">Preise von ${hhmm(route.t)} Uhr · Abfahrt ${when(ranked.dep)}${route.depAt?` · Verkehr: erwartet für ${hhmm(route.depAt)} Uhr`:''}</div>${Math.abs(ranked.dep-(route.depAt||route.t))>10*60000?`<div class="facts warn">${ic('warn')}Abfahrt geändert: Route neu berechnen, damit der Verkehr zur Abfahrtszeit passt.</div>`:''}${ranked.hid?`<div class="mut">${ranked.hid} ${ranked.hid===1?'Tankstelle':'Tankstellen'} durch Filter ausgeblendet (${[S.open&&'nur offene',S.noBAB&&'ohne Autobahn',S.hide.length&&`${S.hide.length} ${S.hide.length===1?'Marke':'Marken'}`].filter(Boolean).join(', ')})</div>`:''}${need.length?`<div class="mut">Nur mit ${need.map(c=>POI[c].label).join(' und ')}, bei Ankunft geöffnet: ${pend.length?`prüfe weitere Tankstellen … (${top.length} gefunden)`:`${top.length} gefunden${poiOut?`, ${poiOut} ohne`:''}${capped?' (die günstigsten 30 geprüft)':''}`}</div>`:''}${calcOn()&&ranked.length>1?`<div class="mut">Vergleich: mittlere Kosten aller Tankstellen der Strecke (Median) für ${String(S.lit).replace('.',',')} l, inkl. Umweg</div>`:''}${rngInfo}${noonInfo}${incInfo}${rCats().length?`<div class="mut">${route.poiErr?`Orte in der Nähe konnten nicht geladen werden (TomTom: ${esc(route.poiErr)}).`:'Orte in der Nähe und Öffnungszeiten: TomTom'}</div>`:''}</div><div class="row"><button data-rmap>Auf Karte zeigen</button><button class="sec" data-rclear>Route löschen</button></div>`;
+  $('#rsum').innerHTML=`<div class="sum">${km(route.km)} · ${dur(route.sec)}${route.delay>=60?`<span class="dl ${dCls(route.delay)}"> (+${Math.round(route.delay/60)} min Stau)</span>`:''} · ${ranked.length} ${ranked.length===1?'Tankstelle':'Tankstellen'} mit ${FN[S.fuel]} bis ${route.corr} km neben der Strecke${top[0]?` · günstigste <b>${fmt(top[0].p)} €</b>`:''}<div class="mut">Preise von ${hhmm(route.t)} Uhr · Abfahrt ${when(ranked.dep)}${route.depAt?` · Verkehr: erwartet für ${hhmm(route.depAt)} Uhr`:''}</div>${Math.abs(ranked.dep-(route.depAt||route.t))>10*60000?`<div class="facts warn">${ic('warn')}Abfahrt geändert: Route neu berechnen, damit der Verkehr zur Abfahrtszeit passt.</div>`:''}${ranked.hid?`<div class="mut">${ranked.hid} ${ranked.hid===1?'Tankstelle':'Tankstellen'} durch Filter ausgeblendet (${[S.open&&'nur offene',S.noBAB&&'ohne Autobahn',S.hide.length&&`${S.hide.length} ${S.hide.length===1?'Marke':'Marken'}`].filter(Boolean).join(', ')})</div>`:''}${need.length?`<div class="mut">Nur mit ${need.map(c=>POI[c].label).join(' und ')}, bei Ankunft geöffnet: ${pend.length?`prüfe weitere Tankstellen … (${top.length} gefunden)`:`${top.length} gefunden${poiOut?`, ${poiOut} ohne`:''}${capped?' (die günstigsten 30 geprüft)':''}`}</div>`:''}${calcOn()&&ranked.length>1?`<div class="mut">Vergleich: mittlere Kosten aller Tankstellen der Strecke (Median) für ${String(S.lit).replace('.',',')} l, inkl. Umweg</div>`:''}${rngInfo}${tip}${noonInfo}${incInfo}${rCats().length?`<div class="mut">${route.poiErr?`Orte in der Nähe konnten nicht geladen werden (TomTom: ${esc(route.poiErr)}).`:'Orte in der Nähe und Öffnungszeiten: TomTom'}</div>`:''}</div><div class="row"><button data-rmap>Auf Karte zeigen</button><button class="sec" data-rclear>Route löschen</button></div>`;
   $('#ritems').innerHTML=top.map((o,i)=>{
     const x=mid-o.c,sv=calc&&ranked.length>1&&Math.abs(x)>=0.005?`<div class="facts"><span class="${x>0?'g':'r'}" aria-label="${eur(x)} ${x>0?'günstiger':'teurer'} als der Median der Strecke, inklusive Umweg">${ic('euro')}${x>0?'−':'+'}${eur(x)} ggü. Median</span><span class="mut">inkl. Umweg</span></div>`:'';
     const arr=hhmm(o.arr);
     return card(o.s,prOf(o.s),null,
       `<div class="facts"><span class="rk" aria-label="Platz ${i+1}">${i+1}</span><span aria-label="bei Kilometer ${Math.round(o.at)}">${ic('pin')}km ${Math.round(o.at)}</span><span aria-label="Fahrzeit ${dur(o.sec)}${o.delay>=60?`, davon ${Math.round(o.delay/60)} Minuten Stau`:''}">${ic('clock')}${dur(o.sec)}${o.delay==null?'':dTxt(o.delay)}</span><span class="${o.delay==null?'':dCls(o.delay)}" aria-label="Ankunft ${arr} Uhr">${ic('flag')}${arr}</span></div>`+
-      `<div class="facts mut"><span aria-label="${km(o.off)} neben der Strecke">${ic('side')}${km(o.off)} neben Strecke</span><span aria-label="Umweg ${km(o.det)}, ${o.dmin} Minuten">${ic('detour')}+${km(o.det)} · +${o.dmin} min</span></div>`+
+      `<div class="facts mut"><span aria-label="${km(o.off)} neben der Strecke">${ic('side')}${km(o.off)} neben Strecke</span><span aria-label="Umweg ${o.real?'':'geschätzt '}${km(o.det)}, ${o.dmin} Minuten">${ic('detour')}${o.real?'':'≈ '}+${km(o.det)} · +${o.dmin} min</span></div>`+
       (o.risk?`<div class="facts warn">${ic('warn')}Ankunft nach 12 Uhr: Preis kann bis dahin steigen</div>`:'')+sv+poiRow(o),navR(o.s));
   }).join('')||(pend.length?'':`<p class="empty">${need.length&&ranked.length?`Keine der günstigsten Tankstellen hat ${need.map(c=>POI[c].label).join(' und ')} in der Nähe, der bei Ankunft geöffnet ist. Umkreis unter ⚙ vergrößern oder Filter lockern.`:ranked.late?'Keine passende Tankstelle vor 12 Uhr erreichbar.':ranked.out?'Keine passende Tankstelle innerhalb deiner Reichweite.':'Keine passende Tankstelle entlang der Strecke.'}${need.length&&ranked.length?'':' Größeren Abstand wählen oder Filter prüfen.'}</p>`);
   loadPois(need.length?pend:top);
+  loadDetours(top);
 }
 $('#rf').onsubmit=e=>{e.preventDefault();calcRoute()};
 $('#rc').value=String(LS.get('rCorr',2));
@@ -1361,7 +1504,7 @@ function openSettings(){
   $('#tt').value=S.tt;
   $('#qset').textContent=`Diesen Monat über diese App (frei): ${qTxt()}. Echte Zahlen im Dashboard auf developer.tomtom.com.`;
   $('#tstyle').value=S.tstyle;$('#incf').value=S.incf;
-  $('#lit').value=S.lit?String(S.lit).replace('.',','):'';
+  $('#lit').value=S.lit?String(S.lit).replace('.',','):'';$('#tank').value=S.tank?String(S.tank).replace('.',','):'';
   $('#cons').value=S.cons?String(S.cons).replace('.',','):'';
   $('#navapp').value=S.nav;
   $('#noonbuf').value=String(S.noonbuf);
@@ -1402,7 +1545,7 @@ $('#flt').addEventListener('close',e=>{
 });
 
 /* Daten sichern und wiederherstellen */
-const KEYS=['favs','order','groups','views','start','lit','cons','fuel','sort','open','hide','noBAB','nav','hist','traffic','tstyle','incf','base','alarms','wgrp','bgint','area','log','routes','noonbuf','pois','poirad'];
+const KEYS=['favs','order','groups','views','start','lit','cons','fuel','sort','open','hide','noBAB','nav','hist','traffic','tstyle','incf','base','alarms','wgrp','bgint','area','log','tank','routes','noonbuf','pois','poirad'];
 async function exportData(){
   const data={app:'spritpreise',version:1,exported:new Date().toISOString()};
   KEYS.forEach(k=>{const v=LS.get(k,null);if(v!=null)data[k]=v});
@@ -1434,6 +1577,7 @@ $('#dlg').addEventListener('close',e=>{
   if(e.target.returnValue!=='ok')return;
   S.key=cleanKey($('#key').value);LS.set('key',S.key);LS.set('start',$('#start').value);
   S.lit=num($('#lit').value);S.cons=num($('#cons').value);LS.set('lit',S.lit);LS.set('cons',S.cons);
+  S.tank=num($('#tank').value);LS.set('tank',S.tank);
   S.nav=$('#navapp').value;LS.set('nav',S.nav);
   S.noonbuf=+$('#noonbuf').value;LS.set('noonbuf',S.noonbuf);
   S.pois={};for(const k in POI)S.pois[k]=$('#poi-'+k).checked;S.poirad=+$('#poirad').value;LS.set('pois',S.pois);LS.set('poirad',S.poirad);
